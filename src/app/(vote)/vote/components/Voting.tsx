@@ -23,7 +23,7 @@ export const Voting = () => {
     <>
       {totalStakedAmount ? (
         <div className="h-full w-full flex flex-col justify-start items-center gap-y-5">
-          <h2 className="w-xs md:w-xl text-xl md:text-2xl text-center font-bold break-words whitespace-normal">
+          <h2 className="w-xs md:w-xl text-xl md:text-2xl text-center font-bold break-words whitespace-normal pt-2">
             Submit Your Vote and Earn Rewards
           </h2>
           <Item variant="outline" className="w-xs md:w-3xl">

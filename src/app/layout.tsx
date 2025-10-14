@@ -4,6 +4,8 @@ import "./globals.css";
 import "./index.css";
 import Navbar from "@/custom-components/navbar/Navbar";
 import { Toaster } from "@/components/ui/sonner";
+import Providers from "@/Providers/Providers";
+import "@rainbow-me/rainbowkit/styles.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,9 +37,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.className} antialiased`}
       >
-        <Navbar />
-        <div className="h-screen w-screen pt-20 pb-10">{children}</div>
-        <Toaster />
+        <Providers>
+          <Navbar />
+          <div className="h-screen w-screen pt-20 pb-10">{children}</div>
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );
