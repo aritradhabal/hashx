@@ -1,46 +1,25 @@
 "use client";
-import React, { useState, useEffect, useContext } from "react";
+import React, { useContext } from "react";
 import { Button } from "@/components/ui/button";
 import { IoLogIn } from "react-icons/io5";
 import { GiMoneyStack } from "react-icons/gi";
-import { UserPen } from "lucide-react";
-import { Spinner } from "@/components/ui/spinner";
+import { TbSignature } from "react-icons/tb";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useConnectModal,
-  useAccountModal,
-  useChainModal,
-} from "@rainbow-me/rainbowkit";
-import { useDisconnect } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useBalance, useDisconnect } from "wagmi";
 import { useAccount } from "wagmi";
 import { toast } from "sonner";
 import delay from "@/utils/delay";
 import { IsAccountConnectedContext } from "@/Providers/Providers/AccountConnectionProvider";
-import { BalanceupdaterContext } from "@/Providers/Providers/BalanceUpdaterProvider";
+import { formatEther } from "viem";
 
 const ConnectWallet = () => {
   const { openConnectModal } = useConnectModal();
-  const { openAccountModal } = useAccountModal();
-  const { openChainModal } = useChainModal();
+  const { address } = useAccount();
+  const { disconnect } = useDisconnect();
   const { isAccountConnected, setIsAccountConnected } = useContext(
     IsAccountConnectedContext
   );
-  const account = useAccount();
-  const [balance, setBalance] = useState(0);
-  const address = "0x1234567890123456789012345678901234567890" as `0x${string}`;
-  const { balanceupdaterHook } = useContext(BalanceupdaterContext);
-  const [waitTime, setwaitTime] = useState(true);
-  const { disconnect } = useDisconnect();
-  useEffect(() => {
-    const delay = (ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms));
-    delay(350).then(() => {
-      setwaitTime(false);
-    });
-  }, []);
-  useEffect(() => {
-    setBalance(100);
-  }, [balanceupdaterHook]);
 
   const switchChain = async () => {
     if (!window.ethereum) return;
@@ -87,24 +66,41 @@ const ConnectWallet = () => {
       }
     }
   };
+  const balanceHBAR = useBalance({
+    address: address,
+    unit: "ether",
+    query: {
+      enabled: !!address,
+      refetchOnWindowFocus: true,
+    },
+  });
 
   return (
     <>
-      <Button variant={"noEffect"}>
-        <p className="cursor-pointer" onClick={openChainModal}>
-          <GiMoneyStack />
-        </p>
-        <Skeleton className="bg-background">
-          <p className="cursor-pointer">0.00 &#8463;</p>
-        </Skeleton>
+      <Button variant={"noEffect"} size="sm">
+        {balanceHBAR.isLoading ? (
+          <>
+            <Skeleton className="bg-background flex flex-row justify-center items-center gap-x-2">
+              <GiMoneyStack />
+              <p className="cursor-default">0.00 &#8463;</p>
+            </Skeleton>
+          </>
+        ) : (
+          <>
+            <p className="cursor-default">
+              <GiMoneyStack />
+            </p>
+            <p className="cursor-default">
+              {parseFloat(
+                formatEther(balanceHBAR.data?.value ?? BigInt(0))
+              ).toFixed(2)}{" "}
+              &#8463;
+            </p>
+          </>
+        )}
       </Button>
 
-      {waitTime ? (
-        <Button size={"sm"} disabled>
-          <Spinner />
-          Loading...
-        </Button>
-      ) : isAccountConnected ? (
+      {isAccountConnected ? (
         <Button
           size={"sm"}
           onClick={() => {
@@ -115,7 +111,7 @@ const ConnectWallet = () => {
           Sign Out
           <IoLogIn />
         </Button>
-      ) : account.isConnected ? (
+      ) : address ? (
         <Button
           size={"sm"}
           onClick={async () => {
@@ -125,8 +121,8 @@ const ConnectWallet = () => {
             openConnectModal?.();
           }}
         >
-          <UserPen />
-          Sign In
+          <TbSignature />
+          Verify
         </Button>
       ) : (
         <Button

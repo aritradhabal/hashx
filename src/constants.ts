@@ -1,5 +1,5 @@
 import LockingContractABI from "../ABI/HBARLockingContract.sol/LockingContract.json" with { type: "json" };
 export const HBAR_LOCKING_CONTRACT_ADDRESS =
-  "0x4EAed2E9799BFCa33CCfda5765B6e717334DB66b";
+  "0xF0080b625254AF056966889DE0C552CE712c59a9";
 
 export const HBAR_LOCKING_CONTRACT_ABI = LockingContractABI.abi;

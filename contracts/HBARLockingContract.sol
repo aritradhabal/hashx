@@ -70,6 +70,10 @@ contract LockingContract is ReentrancyGuard {
         return whbarContract.balanceOf(_address);
     }
 
+    function checkUserDeposit(address _address) public view returns (uint256) {
+        return userDeposits[_address];
+    }
+
     function transferHbar(
         address payable _receiverAddress,
         uint256 _amount
