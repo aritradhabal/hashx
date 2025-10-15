@@ -66,19 +66,21 @@ const ConnectWallet = () => {
       }
     }
   };
-  const balanceHBAR = useBalance({
+  const balanceOfHBAR = useBalance({
     address: address,
     unit: "ether",
+
     query: {
       enabled: !!address,
       refetchOnWindowFocus: true,
+      refetchInterval: 3000,
     },
   });
 
   return (
     <>
       <Button variant={"noEffect"} size="sm">
-        {balanceHBAR.isLoading ? (
+        {balanceOfHBAR.isLoading ? (
           <>
             <Skeleton className="bg-background flex flex-row justify-center items-center gap-x-2">
               <GiMoneyStack />
@@ -92,7 +94,7 @@ const ConnectWallet = () => {
             </p>
             <p className="cursor-default">
               {parseFloat(
-                formatEther(balanceHBAR.data?.value ?? BigInt(0))
+                formatEther(balanceOfHBAR.data?.value ?? BigInt(0))
               ).toFixed(2)}{" "}
               &#8463;
             </p>
