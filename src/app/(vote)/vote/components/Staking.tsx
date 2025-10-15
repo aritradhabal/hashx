@@ -72,7 +72,6 @@ export const Staking = () => {
   const stakedAmount = Math.floor(
     Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
   );
-  const [totalStakedAmount, setTotalStakedAmount] = useState(0);
   const [amount, setAmount] = useState(0);
   const [isAgreed, setIsAgreed] = useState(false);
   const [BtnClicked, setBtnClicked] = useState(false);
