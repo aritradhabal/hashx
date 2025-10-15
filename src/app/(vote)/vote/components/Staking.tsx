@@ -38,6 +38,7 @@ import { formatEther, parseEther } from "viem";
 import { wagmiContractConfig } from "@/utils/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { getBalanceQueryKey } from "wagmi/query";
+import { Spinner } from "@/components/ui/spinner";
 
 export const Staking = () => {
   const { address } = useAccount();
@@ -196,7 +197,13 @@ export const Staking = () => {
                       }
                     }}
                   >
-                    {BtnClicked ? "Staking..." : "Stake Now"}
+                    {BtnClicked ? (
+                      <>
+                        <Spinner /> Staking...
+                      </>
+                    ) : (
+                      "Stake Now"
+                    )}
                   </Button>
                 </div>
               </CardFooter>
@@ -303,7 +310,13 @@ export const Staking = () => {
                       }
                     }}
                   >
-                    {BtnClicked ? "Unstaking..." : "Unstake Now"}
+                    {BtnClicked ? (
+                      <>
+                        <Spinner /> Unstaking...
+                      </>
+                    ) : (
+                      "Unstake Now"
+                    )}
                   </Button>
                 </div>
               </CardFooter>

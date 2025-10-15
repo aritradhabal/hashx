@@ -127,3 +127,9 @@
 .voting-container {
   scrollbar-width: none;
 }
+.text-intputs::-webkit-scrollbar {
+  display: none;
+}
+.text-intputs {
+  scrollbar-width: none;
+}
