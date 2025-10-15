@@ -10,15 +10,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field";
 import { useEffect, useState } from "react";
 import {
   Card,
@@ -32,16 +23,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FaMinus, FaPlus } from "react-icons/fa6";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  useAccount,
-  useBalance,
-  useReadContract,
-  useWriteContract,
-} from "wagmi";
-import { formatEther, parseEther } from "viem";
+import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { parseEther } from "viem";
 import { wagmiContractConfig } from "@/utils/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { getBalanceQueryKey } from "wagmi/query";
@@ -52,48 +37,43 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ChevronDownIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export const CreateVote = () => {
+  const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState(0);
   const [BtnClicked, setBtnClicked] = useState(false);
   const [timeError, setTimeError] = useState<boolean>(false);
-  const [marketName, setMarketName] = useState<string>(
-    "Pariatur duis deserunt anim elit cupidatat laborum"
+  const { data: userDeposit } = useReadContract({
+    ...wagmiContractConfig,
+    functionName: "checkUserDeposit",
+    args: [address],
+    query: {
+      enabled: !!address,
+      refetchOnWindowFocus: true,
+      refetchInterval: 3000,
+    },
+  });
+  const maxTokens = Math.floor(
+    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
   );
-  const [marketDescription, setMarketDescription] = useState<string>(
-    "Reprehenderit eu mollit cupidatat esse nulla anim aliquip culpa. Fugiat elit non ut non qui quis nulla id non officia ullamco ea sit dolor dolore."
-  );
-  const [marketLink, setMarketLink] = useState<string>("");
-  const [marketOptions, setMarketOptions] = useState<string[]>([]);
-  const [value, setValue] = useState<number[]>([0, 1000]);
-  const maxTokens = 5000;
-  const { writeContractAsync } = useWriteContract();
 
   return (
     <>
       <Dialog>
         <DialogTrigger>
-          <div>Create Vote</div>
+          <Badge variant={"secondary"} className="cursor-pointer">
+            Create Vote
+          </Badge>
         </DialogTrigger>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Create Vote</DialogTitle>
             <DialogDescription>
-              Create a voting contract for the following market.
+              Creating a voting contract for the event.
             </DialogDescription>
           </DialogHeader>
-          <FieldGroup>
-            <FieldSet>
-              <FieldLabel htmlFor="market-details">
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldTitle>{marketName}</FieldTitle>
-                    <FieldDescription>{marketDescription}</FieldDescription>
-                  </FieldContent>
-                </Field>
-              </FieldLabel>
-            </FieldSet>
-          </FieldGroup>
 
           <Card className="w-full bg-background rounded-md">
             <CardHeader>
@@ -238,10 +218,10 @@ export const DateTimePicker = ({
 
   return (
     <>
-      <div className="w-full flex flex-row items-center justify-around gap-4 flex-wrap">
+      <div className="w-full flex flex-row items-center justify-around gap-2 md:gap-4 flex-wrap">
         <div className="flex flex-col gap-3">
           <Label htmlFor="date-picker" className="px-1">
-            Date
+            Voting Date
           </Label>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
