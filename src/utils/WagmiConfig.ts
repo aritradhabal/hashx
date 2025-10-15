@@ -1,6 +1,6 @@
 import { createConfig, http } from "wagmi";
 import { hederaTestnet } from "wagmi/chains";
-const HederaTestnetRpcUrl = process.env.NEXT_PUBLIC_HEDERA_TESTNET_RPC_URL;
+const HederaTestnetRpcUrl = process.env.HEDERA_TESTNET_RPC_URL;
 export const config = createConfig({
   chains: [hederaTestnet],
 

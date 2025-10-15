@@ -3,6 +3,7 @@ import { injectedWallet, metaMaskWallet } from "@rainbow-me/rainbowkit/wallets";
 
 import { createConfig, http } from "wagmi";
 import { hederaTestnet } from "wagmi/chains";
+const HederaTestnetRpcUrl = process.env.HEDERA_TESTNET_RPC_URL;
 
 const connectors = connectorsForWallets(
   [
@@ -22,6 +23,6 @@ export const RainbowkitConfig = createConfig({
   chains: [hederaTestnet],
   ssr: true,
   transports: {
-    [hederaTestnet.id]: http(),
+    [hederaTestnet.id]: http(HederaTestnetRpcUrl),
   },
 });
