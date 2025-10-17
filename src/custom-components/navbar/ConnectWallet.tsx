@@ -1,18 +1,17 @@
 "use client";
-import React, { useContext } from "react";
+import React, { useContext, useEffect, useEffectEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { IoLogIn } from "react-icons/io5";
 import { GiMoneyStack } from "react-icons/gi";
 import { TbSignature } from "react-icons/tb";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useBalance, useDisconnect } from "wagmi";
+import { useDisconnect } from "wagmi";
 import { useAccount } from "wagmi";
 import { toast } from "sonner";
 import delay from "@/utils/delay";
 import { IsAccountConnectedContext } from "@/Providers/Providers/AccountConnectionProvider";
-import { formatEther } from "viem";
-
+import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
 const ConnectWallet = () => {
   const { openConnectModal } = useConnectModal();
   const { address } = useAccount();
@@ -66,25 +65,34 @@ const ConnectWallet = () => {
       }
     }
   };
-  const balanceOfHBAR = useBalance({
-    address: address,
-    unit: "ether",
 
-    query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
-      refetchInterval: 3000,
-    },
-  });
+  const {
+    setAddress,
+    balance: balanceOfHBAR,
+    isLoading: isBalanceLoading,
+    fetchBalance,
+  } = useNativeBalanceStore();
+
+  const initilizeNativeBalance = useEffectEvent(
+    (address: `0x${string}` | undefined) => {
+      if (address) {
+        setAddress(address);
+        fetchBalance();
+      }
+    }
+  );
+  useEffect(() => {
+    initilizeNativeBalance(address);
+  }, [address]);
 
   return (
     <>
       <Button variant={"noEffect"} size="sm">
-        {balanceOfHBAR.isLoading ? (
+        {isBalanceLoading ? (
           <>
             <Skeleton className="bg-background flex flex-row justify-center items-center gap-x-2">
               <GiMoneyStack />
-              <p className="cursor-default">0.00 &#8463;</p>
+              <p className="cursor-default">{balanceOfHBAR} &#8463;</p>
             </Skeleton>
           </>
         ) : (
@@ -92,12 +100,7 @@ const ConnectWallet = () => {
             <p className="cursor-default">
               <GiMoneyStack />
             </p>
-            <p className="cursor-default">
-              {parseFloat(
-                formatEther(balanceOfHBAR.data?.value ?? BigInt(0))
-              ).toFixed(2)}{" "}
-              &#8463;
-            </p>
+            <p className="cursor-default"> {balanceOfHBAR} &#8463;</p>
           </>
         )}
       </Button>

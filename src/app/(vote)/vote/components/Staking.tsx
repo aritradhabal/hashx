@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
 import { FaPlus, FaMinus } from "react-icons/fa6";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,46 +33,49 @@ import {
   useBalance,
   useReadContract,
   useWriteContract,
+  useWaitForTransactionReceipt,
 } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { wagmiContractConfig } from "@/utils/contracts";
 import { useQueryClient } from "@tanstack/react-query";
 import { getBalanceQueryKey } from "wagmi/query";
 import { Spinner } from "@/components/ui/spinner";
+import { useTransactionHashStore } from "@/store/useTransactionHashStore";
+import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
+import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
 
 export const Staking = () => {
-  const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const balanceOfHBAR = useBalance({
-    address: address,
-    unit: "ether",
+  const { transactionHash, setTransactionHash } = useTransactionHashStore();
+  const { isSuccess } = useWaitForTransactionReceipt({
+    hash: transactionHash as `0x${string}`,
     query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
+      enabled: !!transactionHash,
     },
   });
-  const { data: userDeposit } = useReadContract({
-    ...wagmiContractConfig,
-    functionName: "checkUserDeposit",
-    args: [address],
-    query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
-      refetchInterval: 3000,
-    },
-  });
-  const maxTokens = Math.floor(
-    Number(
-      formatEther(
-        balanceOfHBAR.data?.value
-          ? balanceOfHBAR.data.value - BigInt(1000000000000000000)
-          : BigInt(0)
-      )
-    )
-  );
-  const stakedAmount = Math.floor(
-    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
-  );
+  const { balance: nativeBalance, fetchBalance: fetchNativeBalance } =
+    useNativeBalanceStore();
+  const {
+    address,
+    balance: stakedTokenBalance,
+    fetchBalance: fetchTokenBalance,
+  } = useTokenBalanceStore();
+
+  useEffect(() => {
+    console.log("rendered1");
+    fetchTokenBalance();
+  }, [address]);
+
+  useEffect(() => {
+    console.log("rendered2");
+    if (isSuccess) {
+      fetchNativeBalance();
+      fetchTokenBalance();
+    }
+  }, [isSuccess]);
+
+  const maxTokens = Number(nativeBalance);
+  const stakedAmount = Number(stakedTokenBalance);
   const [amount, setAmount] = useState(0);
   const [isAgreed, setIsAgreed] = useState(false);
   const [BtnClicked, setBtnClicked] = useState(false);
@@ -173,7 +176,7 @@ export const Staking = () => {
                           functionName: "stakeWithHBAR",
                           value: BigInt(parseEther(amount.toString())),
                         });
-
+                        setTransactionHash(txHash);
                         toast.success("Transaction successful", {
                           id: toastId,
                           action: {
@@ -289,6 +292,7 @@ export const Staking = () => {
                           functionName: "unstake",
                           args: [BigInt(Number(amount) * 1e8)],
                         });
+                        setTransactionHash(txHash);
                         toast.success("Transaction successful", {
                           id: toastId,
                           action: {
