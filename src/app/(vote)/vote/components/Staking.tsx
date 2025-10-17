@@ -28,17 +28,9 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import {
-  useAccount,
-  useBalance,
-  useReadContract,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
-import { formatEther, parseEther } from "viem";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseEther } from "viem";
 import { wagmiContractConfig } from "@/utils/contracts";
-import { useQueryClient } from "@tanstack/react-query";
-import { getBalanceQueryKey } from "wagmi/query";
 import { Spinner } from "@/components/ui/spinner";
 import { useTransactionHashStore } from "@/store/useTransactionHashStore";
 import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
