@@ -62,10 +62,8 @@ export const CreateVote = () => {
   return (
     <>
       <Dialog>
-        <DialogTrigger>
-          <Badge variant={"secondary"} className="cursor-pointer">
-            Create Vote
-          </Badge>
+        <DialogTrigger asChild>
+          <Button variant={"secondary"}>Create Vote</Button>
         </DialogTrigger>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
