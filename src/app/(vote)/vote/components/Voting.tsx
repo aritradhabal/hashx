@@ -297,7 +297,7 @@ export const DetailsDialog = () => {
           />
           <InputGroupAddon align="block-start">
             <Label htmlFor="public-parameters-sk" className="text-foreground">
-              Locked SecretKey (SK)
+              Hashed SecretKey
             </Label>
           </InputGroupAddon>
         </InputGroup>
@@ -313,7 +313,7 @@ export const DetailsDialog = () => {
           />
           <InputGroupAddon align="block-start">
             <Label htmlFor="public-parameters-soln" className="text-foreground">
-              Secret Key (SK Recovered)
+              Secret Key (SK)
             </Label>
           </InputGroupAddon>
         </InputGroup>

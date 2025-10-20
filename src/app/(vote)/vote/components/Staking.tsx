@@ -64,7 +64,7 @@ export const Staking = () => {
     }
   }, [isSuccess]);
 
-  const maxTokens = Number(nativeBalance);
+  const maxTokens = Number(nativeBalance) - 1;
   const stakedAmount = Number(stakedTokenBalance);
   const [amount, setAmount] = useState(0);
   const [isAgreed, setIsAgreed] = useState(false);
