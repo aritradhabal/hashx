@@ -33,13 +33,12 @@ contract LockingContract is ReentrancyGuard {
     uint256 public contractBalance;
     mapping(address => uint256) public userDeposits;
     mapping(address => uint256) public userDepositTimestamps;
-    mapping(address => uint256) public userRewards;
     uint256 public totalBalanceInPool;
     address public constant WHBAR_CONTRACT_ADDRESS =
-        address(0xb1F616b8134F602c3Bb465fB5b5e6565cCAd37Ed);
+        address(0xb1F616b8134F602c3Bb465fB5b5e6565cCAd37Ed); //should be immutable
     IWHBAR public whbarContract = IWHBAR(WHBAR_CONTRACT_ADDRESS);
     address public immutable OWNER;
-    uint256 public USER_DEPOSIT_LOCKING_PERIOD;
+    uint256 public userDepositLockingPeriod; // should be immutable too
 
     constructor() {
         OWNER = msg.sender;
@@ -51,7 +50,7 @@ contract LockingContract is ReentrancyGuard {
         if (msg.sender != OWNER) {
             revert SENDER_NOT_OWNER(msg.sender);
         }
-        USER_DEPOSIT_LOCKING_PERIOD = _userDepositLockingPeriod;
+        userDepositLockingPeriod = _userDepositLockingPeriod;
     }
 
     function stakeWithHBAR() public payable {
@@ -60,18 +59,56 @@ contract LockingContract is ReentrancyGuard {
         if (_userDeposit < 1e8) {
             revert HBAR_AMOUNT_TOO_SMALL(_userDeposit);
         }
-        userDeposits[_userAddress] += _userDeposit;
         totalBalanceInPool += _userDeposit;
-        whbarContract.deposit{value: _userDeposit}();
+        userDeposits[_userAddress] += _userDeposit;
         userDepositTimestamps[_userAddress] = block.timestamp;
+        whbarContract.deposit{value: _userDeposit}();
     }
 
     function checkWHBARBalance(address _address) public view returns (uint256) {
         return whbarContract.balanceOf(_address);
     }
 
+    // use "get" instead of "check"
+    // function getWHBARBalance(address _address) public view returns (uint256) {
+    //     return whbarContract.balanceOf(_address);
+    // }
+
     function checkUserDeposit(address _address) public view returns (uint256) {
         return userDeposits[_address];
+    }
+
+    // use "get" instead of "check"
+    // function getUserDeposit(address _address) public view returns (uint256) {
+    //     return userDeposits[_address];
+    // }
+
+    function transferWHbar(
+        address _payerAddress,
+        address payable _payeeAddress,
+        uint256 _amount
+    ) external returns (bool) {
+        if (userDeposits[_payerAddress] < _amount) {
+            revert USER_HAS_LESS_BALANCE(
+                _payerAddress,
+                userDeposits[_payerAddress]
+            );
+        }
+        userDeposits[_payerAddress] -= _amount;
+        totalBalanceInPool -= _amount;
+        bool success = whbarContract.transfer(_payeeAddress, _amount);
+        if (!success) {
+            revert WHBAR_TRANSFER_FAILED(_payeeAddress, _amount);
+        }
+        return success;
+    }
+
+    function receiveWHbar(
+        address _receiverAddress,
+        uint256 _amount
+    ) external payable {
+        userDeposits[_receiverAddress] += _amount;
+        totalBalanceInPool += _amount;
     }
 
     function transferHbar(
@@ -82,13 +119,13 @@ contract LockingContract is ReentrancyGuard {
         if (!success) revert HBAR_TRANSFER_FAILED(_receiverAddress, _amount);
     }
 
-    function unstake(uint256 _amountToWithdraw) public nonReentrant {
+    function unstake(uint256 _amount) public nonReentrant {
         uint256 _userBalance = userDeposits[msg.sender];
         address _userAddress = msg.sender;
         uint256 lockReleaseTime = userDepositTimestamps[_userAddress] +
-            USER_DEPOSIT_LOCKING_PERIOD;
+            userDepositLockingPeriod;
 
-        if (_userBalance < _amountToWithdraw) {
+        if (_userBalance < _amount) {
             revert USER_HAS_LESS_BALANCE(_userAddress, _userBalance);
         }
         uint256 _remainingTimeToWithdraw = 0;
@@ -99,11 +136,11 @@ contract LockingContract is ReentrancyGuard {
                 _remainingTimeToWithdraw
             );
         }
-        userDeposits[_userAddress] -= _amountToWithdraw;
-        totalBalanceInPool -= _amountToWithdraw;
-        whbarContract.withdraw(_amountToWithdraw);
-        contractBalance -= _amountToWithdraw;
-        transferHbar(payable(_userAddress), _amountToWithdraw);
+        userDeposits[_userAddress] -= _amount;
+        totalBalanceInPool -= _amount;
+        whbarContract.withdraw(_amount);
+        contractBalance -= _amount;
+        transferHbar(payable(_userAddress), _amount);
     }
 
     function contractDeposit() public payable {

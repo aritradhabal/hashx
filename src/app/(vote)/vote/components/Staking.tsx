@@ -54,12 +54,10 @@ export const Staking = () => {
   } = useTokenBalanceStore();
 
   useEffect(() => {
-    console.log("rendered1");
     fetchTokenBalance();
   }, [address]);
 
   useEffect(() => {
-    console.log("rendered2");
     if (isSuccess) {
       fetchNativeBalance();
       fetchTokenBalance();

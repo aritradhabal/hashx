@@ -82,6 +82,7 @@ const ConnectWallet = () => {
     }
   );
   useEffect(() => {
+    console.log("redndered");
     initilizeNativeBalance(address);
   }, [address]);
 

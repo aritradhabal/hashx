@@ -188,12 +188,15 @@ export const DateTimePicker = ({
   }
   const now = new Date();
   const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  const twoHoursLater = new Date(now.getTime() + 60 * 60 * 2 * 1000);
 
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date>(new Date(Date.now()));
-  const [startTime, setStartTime] = useState<string>(getFormattedTime(now));
-  const [endTime, setEndTime] = useState<string>(
+  const [startTime, setStartTime] = useState<string>(
     getFormattedTime(oneHourLater)
+  );
+  const [endTime, setEndTime] = useState<string>(
+    getFormattedTime(twoHoursLater)
   );
 
   const startTimeInUnix = Math.floor(
