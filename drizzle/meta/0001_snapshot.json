@@ -1,6 +1,6 @@
 {
-  "id": "805fb156-f3ef-4c44-97cf-966023226514",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "d3efa45a-25b1-496d-b17c-bbba94e039fc",
+  "prevId": "805fb156-f3ef-4c44-97cf-966023226514",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8,16 +8,10 @@
       "name": "secrets",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
         "market_id": {
           "name": "market_id",
           "type": "bigint",
-          "primaryKey": false,
+          "primaryKey": true,
           "notNull": true
         },
         "secret_key": {

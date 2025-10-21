@@ -55,7 +55,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { calculateTforTimestamp } from "@/actions/getTime";
 import { generateKeyPair } from "@/actions/keygen";
 
-interface argsT {
+export interface argsT {
   marketId: bigint | undefined;
   optionA: bigint | undefined;
   optionB: bigint | undefined;
@@ -76,8 +76,8 @@ export const CreateVote = () => {
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState(0);
   const [BtnClicked, setBtnClicked] = useState(false);
-  const [timeError, setTimeError] = useState<boolean>(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
+  const [timeError, setTimeError] = useState<boolean>(false);
 
   const { data: receipt, isSuccess: isConfirmed } = useTransactionReceipt({
     hash: txHash as `0x${string}`,
@@ -103,9 +103,10 @@ export const CreateVote = () => {
   const maxTokens = Math.floor(
     Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
   );
+  const randomNumber = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
   const [args, setArgs] = useState<argsT>({
-    marketId: BigInt(0),
+    marketId: BigInt(randomNumber),
     optionA: BigInt(0),
     optionB: BigInt(1),
     rewards: undefined,
@@ -121,15 +122,26 @@ export const CreateVote = () => {
     publicKey: undefined,
   });
 
-  useMemo(() => {
+  useEffect(() => {
     if (!args.endTimestamp) return;
     const t = calculateTforTimestamp(args.endTimestamp as bigint);
-    console.log(t.toString());
     setArgs((prev: argsT) => ({
       ...prev,
       t: t,
     }));
   }, [args.endTimestamp]);
+
+  // useEffect(() => {
+  //   console.log(
+  //     "args:",
+  //     Object.fromEntries(
+  //       Object.entries(args).map(([k, v]) => [
+  //         k,
+  //         typeof v === "bigint" ? v.toString() : v,
+  //       ])
+  //     )
+  //   );
+  // }, [args]);
 
   return (
     <>
@@ -208,10 +220,10 @@ export const CreateVote = () => {
                 </Button>
               </CardAction>
               <DateTimePicker
-                timeError={timeError}
-                setTimeError={setTimeError}
                 args={args}
                 setArgs={setArgs}
+                timeError={timeError}
+                setTimeError={setTimeError}
               />
               <SelectResolutionCard />
             </CardFooter>
@@ -227,8 +239,21 @@ export const CreateVote = () => {
               }
               onClick={async () => {
                 setBtnClicked(true);
-                const { publicKey, hashedSK, n, a, t, skLocked } =
-                  await generateKeyPair(true, args.t as bigint);
+
+                const {
+                  success: storedInServer,
+                  publicKey,
+                  hashedSK,
+                  n,
+                  a,
+                  t,
+                  skLocked,
+                } = await generateKeyPair(true, args);
+                console.log(storedInServer);
+                if (!storedInServer) {
+                  setBtnClicked(false);
+                  return;
+                }
                 setArgs((prev: argsT) => ({
                   ...prev,
                   N: n,
@@ -238,6 +263,24 @@ export const CreateVote = () => {
                   hashedSK: hashedSK,
                   publicKey: publicKey,
                 }));
+                const callArgs = {
+                  ...args,
+                  N: n,
+                  a,
+                  t,
+                  skLocked,
+                  hashedSK,
+                  publicKey,
+                };
+                console.log(
+                  "callargs:",
+                  Object.fromEntries(
+                    Object.entries(callArgs).map(([k, v]) => [
+                      k,
+                      typeof v === "bigint" ? v.toString() : v,
+                    ])
+                  )
+                );
                 const toastId = toast.loading("Transaction in progress...");
                 try {
                   const txHash = await writeContractAsync({
@@ -245,20 +288,20 @@ export const CreateVote = () => {
                     abi: CreateVoteFactoryContractConfig.abi,
                     functionName: "createVoteContracts",
                     args: [
-                      args.marketId,
-                      args.optionA,
-                      args.optionB,
-                      args.rewards,
-                      args.startTimestamp,
-                      args.endTimestamp,
-                      args.thresholdVotes,
-                      args.hbarLockingContractAddress,
-                      args.N,
-                      args.t,
-                      args.a,
-                      args.skLocked,
-                      args.hashedSK,
-                      args.publicKey,
+                      callArgs.marketId,
+                      callArgs.optionA,
+                      callArgs.optionB,
+                      callArgs.rewards,
+                      callArgs.startTimestamp,
+                      callArgs.endTimestamp,
+                      callArgs.thresholdVotes,
+                      callArgs.hbarLockingContractAddress,
+                      callArgs.N,
+                      callArgs.t,
+                      callArgs.a,
+                      callArgs.skLocked,
+                      callArgs.hashedSK,
+                      callArgs.publicKey,
                     ],
                   });
                   setTxHash(txHash);
@@ -301,30 +344,34 @@ export const CreateVote = () => {
 };
 
 export const DateTimePicker = ({
-  timeError,
-  setTimeError,
   args,
   setArgs,
+  timeError,
+  setTimeError,
 }: {
-  timeError: boolean;
-  setTimeError: (timeError: boolean) => void;
   args: argsT;
   setArgs: Dispatch<SetStateAction<argsT>>;
+  timeError: boolean;
+  setTimeError: (timeError: boolean) => void;
 }) => {
   function getFormattedTime(date: Date): string {
     return date.toLocaleTimeString("en-GB", { hour12: false });
   }
   const now = new Date();
+  const nowSec = Math.floor(Date.now() / 1000);
+
   const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  const twoMinutesLater = new Date(now.getTime() + 2 * 60 * 1000);
+  const tenMinutesLater = new Date(now.getTime() + 10 * 60 * 1000);
   const twoHoursLater = new Date(now.getTime() + 60 * 60 * 2 * 1000);
 
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date>(new Date(Date.now()));
   const [startTime, setStartTime] = useState<string>(
-    getFormattedTime(oneHourLater)
+    getFormattedTime(twoMinutesLater)
   );
   const [endTime, setEndTime] = useState<string>(
-    getFormattedTime(twoHoursLater)
+    getFormattedTime(tenMinutesLater)
   );
 
   const startTimeInUnix = Math.floor(
@@ -344,7 +391,6 @@ export const DateTimePicker = ({
   }, [startTimeInUnix, endTimeInUnix]);
 
   const currentTimeUnix = Math.floor(Date.now() / 1000);
-
   useEffect(() => {
     if (startTimeInUnix < currentTimeUnix) {
       setTimeError(true);
@@ -352,7 +398,6 @@ export const DateTimePicker = ({
       setTimeError(false);
     }
   }, [startTimeInUnix, currentTimeUnix]);
-
   return (
     <>
       <div className="w-full flex flex-row items-center justify-around gap-2 md:gap-4 flex-wrap">
