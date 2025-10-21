@@ -53,8 +53,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { calculateTforTimestamp } from "@/actions/getTime";
 import { generateKeyPair } from "@/actions/keygen";
 import { verifySecret } from "@/actions/db-actions";
-import { useRouter } from "next/navigation";
-import delay from "@/utils/delay";
 export interface argsT {
   marketId: bigint | undefined;
   optionA: bigint | undefined;
@@ -83,7 +81,6 @@ export const CreateVote = () => {
   const [dialogOpen, setDialogppen] = useState<boolean>(false);
 
   const {
-    data: receipt,
     isSuccess: isConfirmed,
     isError,
   } = useWaitForTransactionReceipt({
