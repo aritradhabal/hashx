@@ -52,6 +52,7 @@ contract CreateVote {
         uint32 a;
         bytes32 sk_locked;
         bytes32 hashedSK;
+        bytes32 publicKey;
     }
 
     HBARlockingContract public LockingContract;
@@ -76,7 +77,8 @@ contract CreateVote {
         uint256 _t,
         uint32 _a,
         bytes32 _skLocked,
-        bytes32 _hashedSK
+        bytes32 _hashedSK,
+        bytes32 _publicKey
     ) {
         LockingContract = HBARlockingContract(_hbarLockingContractAddress);
         if (_startTimestamp >= _endTimestamp) {
@@ -106,7 +108,8 @@ contract CreateVote {
             t: _t,
             a: _a,
             sk_locked: _skLocked,
-            hashedSK: _hashedSK
+            hashedSK: _hashedSK,
+            publicKey: _publicKey
         });
 
         LockingContract.transferWHbar(_creator, address(this), _rewards);
