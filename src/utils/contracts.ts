@@ -3,6 +3,7 @@ import {
   HBAR_LOCKING_CONTRACT_ADDRESS,
   CREATEVOTE_FACTORY_ADDRESS,
   CREATEVOTE_FACTORY_ABI,
+  CREATEVOTE_ABI,
 } from "@/constants";
 export const wagmiContractConfig = {
   address: HBAR_LOCKING_CONTRACT_ADDRESS,
@@ -12,4 +13,8 @@ export const wagmiContractConfig = {
 export const CreateVoteFactoryContractConfig = {
   address: CREATEVOTE_FACTORY_ADDRESS,
   abi: CREATEVOTE_FACTORY_ABI,
+} as const;
+
+export const CreateVoteContractConfig = {
+  abi: CREATEVOTE_ABI,
 } as const;

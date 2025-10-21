@@ -123,6 +123,10 @@ contract CreateVote {
         return pp;
     }
 
+    function getVoteConfig() public view returns (VoteConfig memory) {
+        return config;
+    }
+
     function getContractBalance() public view returns (uint256) {
         return LockingContract.checkWHBARBalance(address(this));
     }

@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/popover";
 import { ChevronDownIcon } from "lucide-react";
 import { HBAR_LOCKING_CONTRACT_ADDRESS } from "@/constants";
-import { useTransactionReceipt } from "wagmi";
+import { useTransactionReceipt, useWaitForTransactionReceipt } from "wagmi";
 import {
   Field,
   FieldContent,
@@ -52,6 +52,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { calculateTforTimestamp } from "@/actions/getTime";
 import { generateKeyPair } from "@/actions/keygen";
+import { verifySecret } from "@/actions/db-actions";
 
 export interface argsT {
   marketId: bigint | undefined;
@@ -82,16 +83,25 @@ export const CreateVote = () => {
     data: receipt,
     isSuccess: isConfirmed,
     isError,
-  } = useTransactionReceipt({
+  } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
       enabled: !!txHash,
     },
   });
+
   useEffect(() => {
     if (!isConfirmed) return;
     setTxConfirmed(true);
-  }, [isConfirmed]);
+    console.log(txHash);
+    const verifyTxHash = async () => {
+      const { success } = await verifySecret(txHash as `0x${string}`);
+      if (!success) {
+        console.log("failed");
+      } else console.log("perfect");
+    };
+    verifyTxHash();
+  }, [txHash, isConfirmed]);
 
   const { data: userDeposit } = useReadContract({
     ...wagmiContractConfig,
@@ -242,7 +252,7 @@ export const CreateVote = () => {
                     t,
                     skLocked,
                   } = await generateKeyPair(true, args);
-                  console.log(storedInServer);
+
                   if (!storedInServer) {
                     setBtnClicked(false);
                     return;
@@ -265,15 +275,7 @@ export const CreateVote = () => {
                     hashedSK,
                     publicKey,
                   };
-                  console.log(
-                    "callargs:",
-                    Object.fromEntries(
-                      Object.entries(callArgs).map(([k, v]) => [
-                        k,
-                        typeof v === "bigint" ? v.toString() : v,
-                      ])
-                    )
-                  );
+
                   const toastId = toast.loading("Transaction in progress...");
                   try {
                     const txHash = await writeContractAsync({
@@ -331,7 +333,9 @@ export const CreateVote = () => {
                 )}
               </Button>
             ) : (
-              <Button>Verify & Publish</Button>
+              <Button disabled>
+                <Spinner /> Verifying...
+              </Button>
             )}
           </DialogFooter>
         </DialogContent>

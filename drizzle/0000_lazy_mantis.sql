@@ -1,6 +1,5 @@
 CREATE TABLE "secrets" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"market_id" bigint NOT NULL,
+	"market_id" bigint PRIMARY KEY NOT NULL,
 	"secret_key" varchar(80) NOT NULL,
 	"n" varchar(2050) NOT NULL,
 	"t" bigint NOT NULL,
@@ -9,5 +8,11 @@ CREATE TABLE "secrets" (
 	"hashed_sk" varchar(80) NOT NULL,
 	"public_key" varchar(80) NOT NULL,
 	"verified" boolean DEFAULT false NOT NULL,
-	"server" boolean NOT NULL
+	"server" boolean NOT NULL,
+	"contract_address" varchar(80),
+	"option_a" bigint,
+	"option_b" bigint,
+	"rewards" bigint,
+	"startTimeStamp" bigint,
+	"endTimeStamp" bigint
 );

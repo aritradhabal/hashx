@@ -1,9 +1,17 @@
 "use server";
 import { db } from "@/db/index";
 import { secrets } from "@/db/schema";
-
+import {
+  CREATEVOTE_FACTORY_ADDRESS,
+  HBAR_LOCKING_CONTRACT_ADDRESS,
+} from "@/constants";
 import { eq } from "drizzle-orm";
-
+import { getTransactionReceipt } from "@wagmi/core";
+import { config } from "@/utils/WagmiConfig";
+import { Address, Hex, hexToBigInt } from "viem";
+import { decodeAbiParameters, getAddress } from "viem";
+import { readContract } from "@wagmi/core";
+import { CreateVoteContractConfig } from "@/utils/contracts";
 export interface secretParamsT {
   marketId: bigint;
   N: `0x${string}`;
@@ -16,6 +24,51 @@ export interface secretParamsT {
   verified: boolean;
   server: boolean;
 }
+
+interface ppT {
+  N: string;
+  t: bigint;
+  a: number;
+  sk_locked: string;
+  hashedSK: string;
+  publicKey: string;
+}
+interface VoteConfigT {
+  optionA: bigint;
+  optionB: bigint;
+  rewards: bigint;
+  startTimestamp: bigint;
+  endTimestamp: bigint;
+  thresholdVotes: number;
+  creator: Address;
+}
+
+type ReadMap = {
+  getPublicParameters: ppT;
+  getVoteConfig: VoteConfigT;
+};
+
+export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
+  const [rawAddress] = decodeAbiParameters(
+    [{ type: "address" }],
+    paddedAddr as `0x${string}`
+  );
+  const checksummedAddress = getAddress(rawAddress);
+  return checksummedAddress;
+}
+
+const getDataFromContract = async <F extends keyof ReadMap>(
+  address: `0x${string}`,
+  functionName: F
+): Promise<ReadMap[F]> => {
+  const result = await readContract(config as any, {
+    abi: CreateVoteContractConfig.abi,
+    address: address,
+    functionName: functionName,
+  });
+
+  return result as ReadMap[F];
+};
 
 export async function addSecrets(secretParams: secretParamsT) {
   try {
@@ -54,10 +107,102 @@ export async function addSecrets(secretParams: secretParamsT) {
       data: inserted,
     };
   } catch (error: any) {
-    console.error("❌ Failed to insert voting contract:", error);
+    console.error("Failed to insert in votingcontract:", error);
     return {
       success: false,
       error: error.message,
     };
   }
+}
+
+export async function verifySecret(txHash: `0x${string}`) {
+  const receipt = await getTransactionReceipt(config as any, {
+    hash: txHash,
+  });
+
+  if (!receipt) {
+    return {
+      success: false,
+    };
+  }
+  const logs = receipt.logs;
+  const _logsHbarLockingContractAddr = await getAddrFromABIEncoded(
+    logs[0].topics[1] as `0x${string}`
+  );
+  const _factoryContractAddr = logs[1].address;
+  const _deployedContractAddr = await getAddrFromABIEncoded(
+    logs[1].topics[2] as `0x${string}`
+  );
+  const _marketId = hexToBigInt(logs[1].topics[1] as `0x${string}`);
+
+  if (
+    _logsHbarLockingContractAddr.toLowerCase() !=
+      HBAR_LOCKING_CONTRACT_ADDRESS.toLowerCase() ||
+    _factoryContractAddr.toLowerCase() !=
+      CREATEVOTE_FACTORY_ADDRESS.toLowerCase()
+  ) {
+    return {
+      success: false,
+    };
+  }
+  const pp = await getDataFromContract(
+    _deployedContractAddr,
+    "getPublicParameters"
+  );
+  const voteConfig = await getDataFromContract(
+    _deployedContractAddr,
+    "getVoteConfig"
+  );
+
+  const [row] = await db
+    .select()
+    .from(secrets)
+    .where(eq(secrets.marketId, _marketId));
+
+  if (!row) {
+    return {
+      success: false,
+      error: "No secrets entry for marketId",
+      marketId: _marketId,
+    };
+  }
+
+  const normalizeHex = (v?: string) => (v ?? "").toLowerCase();
+
+  // Compare DB values with on-chain pp
+  const matches =
+    row.N === pp.N &&
+    row.t === pp.t &&
+    row.a === pp.a &&
+    normalizeHex(row.skLocked) === normalizeHex(pp.sk_locked) &&
+    normalizeHex(row.hashedSK) === normalizeHex(pp.hashedSK) &&
+    normalizeHex(row.publicKey) === normalizeHex(pp.publicKey);
+
+  if (!matches) {
+    return {
+      success: false,
+      error: "Public parameters mismatch",
+      marketId: _marketId,
+    };
+  }
+
+  // Update contract address and mark as verified
+  await db
+    .update(secrets)
+    .set({
+      contractAddress: _deployedContractAddr,
+      verified: true,
+      startTimeStamp: voteConfig.startTimestamp,
+      endTimestamp: voteConfig.endTimestamp,
+      optionA: voteConfig.optionA,
+      optionB: voteConfig.optionB,
+      rewards: voteConfig.rewards,
+    })
+    .where(eq(secrets.marketId, _marketId));
+
+  return {
+    success: true,
+    contractAddress: _deployedContractAddr,
+    marketId: _marketId,
+  };
 }

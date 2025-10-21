@@ -18,4 +18,10 @@ export const secrets = pgTable("secrets", {
   publicKey: varchar("public_key", { length: 80 }).notNull(),
   verified: boolean("verified").notNull().default(false),
   server: boolean("server").notNull(),
+  contractAddress: varchar("contract_address", { length: 80 }),
+  optionA: bigint("option_a", { mode: "bigint" }),
+  optionB: bigint("option_b", { mode: "bigint" }),
+  rewards: bigint("rewards", { mode: "bigint" }),
+  startTimeStamp: bigint("startTimeStamp", { mode: "bigint" }),
+  endTimestamp: bigint("endTimeStamp", { mode: "bigint" }),
 });

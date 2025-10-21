@@ -41,7 +41,7 @@ contract CreateVoteFactory {
             _startTimestamp,
             _endTimestamp,
             _thresholdVotes,
-            msg.sender, // The creator of the contract
+            msg.sender,
             _hbarLockingContractAddress,
             _N,
             _t,

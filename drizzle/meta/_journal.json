@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1761066278169,
-      "tag": "0000_next_gwen_stacy",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1761067605123,
-      "tag": "0001_real_imperial_guard",
+      "when": 1761086453654,
+      "tag": "0000_lazy_mantis",
       "breakpoints": true
     }
   ]
