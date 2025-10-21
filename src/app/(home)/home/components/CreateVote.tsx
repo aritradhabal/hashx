@@ -53,7 +53,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { calculateTforTimestamp } from "@/actions/getTime";
 import { generateKeyPair } from "@/actions/keygen";
 import { verifySecret } from "@/actions/db-actions";
-
+import { useRouter } from "next/navigation";
+import delay from "@/utils/delay";
 export interface argsT {
   marketId: bigint | undefined;
   optionA: bigint | undefined;
@@ -77,7 +78,9 @@ export const CreateVote = () => {
   const [BtnClicked, setBtnClicked] = useState(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [timeError, setTimeError] = useState<boolean>(false);
-  const [txConfirmed, setTxConfirmed] = useState<boolean>(false);
+  const [verifying, setVerifying] = useState<boolean>(false);
+  const [servergen, setServergen] = useState<boolean>(true);
+  const [dialogOpen, setDialogppen] = useState<boolean>(false);
 
   const {
     data: receipt,
@@ -92,13 +95,25 @@ export const CreateVote = () => {
 
   useEffect(() => {
     if (!isConfirmed) return;
-    setTxConfirmed(true);
-    console.log(txHash);
+    setVerifying(true);
+
     const verifyTxHash = async () => {
       const { success } = await verifySecret(txHash as `0x${string}`);
       if (!success) {
         console.log("failed");
-      } else console.log("perfect");
+        setVerifying(false);
+        toast.error("Couldn't Verify Contract! Try again...", {
+          duration: 3500,
+        });
+        setDialogppen(false);
+      } else {
+        console.log("perfect");
+        setVerifying(false);
+        toast.success("Contract Created Successfully", {
+          duration: 3500,
+        });
+        setDialogppen(false);
+      }
     };
     verifyTxHash();
   }, [txHash, isConfirmed]);
@@ -146,7 +161,7 @@ export const CreateVote = () => {
 
   return (
     <>
-      <Dialog>
+      <Dialog open={dialogOpen} onOpenChange={setDialogppen}>
         <DialogTrigger asChild>
           <Button variant={"secondary"}>Create Vote</Button>
         </DialogTrigger>
@@ -169,7 +184,7 @@ export const CreateVote = () => {
               <Input
                 type="number"
                 placeholder="Amount"
-                disabled={txConfirmed}
+                disabled={verifying}
                 value={amount > 0 ? amount : ""}
                 onChange={(e) => {
                   setAmount(Number(e.target.value));
@@ -191,13 +206,13 @@ export const CreateVote = () => {
                       rewards: BigInt(Number(amount - 10) * 1e8),
                     }));
                   }}
-                  disabled={amount - 10 < 0 || txConfirmed}
+                  disabled={amount - 10 < 0 || verifying}
                 >
                   <FaMinus />
                 </Button>
                 <Button
                   variant={"outline"}
-                  disabled={txConfirmed}
+                  disabled={verifying}
                   onClick={() => {
                     setAmount(maxTokens);
                     setArgs((prev: argsT) => ({
@@ -217,17 +232,21 @@ export const CreateVote = () => {
                       rewards: BigInt(Number(amount + 10) * 1e8),
                     }));
                   }}
-                  disabled={amount + 10 > maxTokens || txConfirmed}
+                  disabled={amount + 10 > maxTokens || verifying}
                 >
                   <FaPlus />
                 </Button>
               </CardAction>
               <DateTimePicker
-                txConfirmed={txConfirmed}
+                verifying={verifying}
                 setArgs={setArgs}
                 setTimeError={setTimeError}
               />
-              <SelectResolutionCard txConfirmed={txConfirmed} />
+              <SelectResolutionCard
+                verifying={verifying}
+                servergen={servergen}
+                setServergen={setServergen}
+              />
             </CardFooter>
           </Card>
 
@@ -235,7 +254,7 @@ export const CreateVote = () => {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            {!txConfirmed ? (
+            {!verifying ? (
               <Button
                 disabled={
                   amount <= 0 || amount > maxTokens || BtnClicked || timeError
@@ -251,7 +270,7 @@ export const CreateVote = () => {
                     a,
                     t,
                     skLocked,
-                  } = await generateKeyPair(true, args);
+                  } = await generateKeyPair(servergen, args);
 
                   if (!storedInServer) {
                     setBtnClicked(false);
@@ -334,7 +353,15 @@ export const CreateVote = () => {
               </Button>
             ) : (
               <Button disabled>
-                <Spinner /> Verifying...
+                {verifying ? (
+                  <>
+                    <Spinner /> Verifying...
+                  </>
+                ) : (
+                  <>
+                    <Spinner /> Redirecting...
+                  </>
+                )}
               </Button>
             )}
           </DialogFooter>
@@ -348,9 +375,9 @@ export const DateTimePicker = ({
   setArgs,
 
   setTimeError,
-  txConfirmed,
+  verifying,
 }: {
-  txConfirmed: boolean;
+  verifying: boolean;
 
   setArgs: Dispatch<SetStateAction<argsT>>;
 
@@ -400,6 +427,7 @@ export const DateTimePicker = ({
       setTimeError(false);
     }
   }, [startTimeInUnix, currentTimeUnix]);
+
   return (
     <>
       <div className="w-full flex flex-row items-center justify-around gap-2 md:gap-4 flex-wrap">
@@ -428,18 +456,14 @@ export const DateTimePicker = ({
                 captionLayout="label"
                 fixedWeeks={true}
                 required
-                // disabled={{
-                //   before: new Date(Date.now()),
-                //   after: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
-                // }}
                 disabled={[
                   {
                     before: new Date(Date.now()),
                     after: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
                   },
-                  txConfirmed && (() => true),
+                  verifying && (() => true),
                 ].filter(Boolean)}
-                hideNavigation={txConfirmed}
+                hideNavigation={verifying}
                 onSelect={(date) => {
                   setDate(date);
                   setOpen(false);
@@ -454,7 +478,7 @@ export const DateTimePicker = ({
           </Label>
           <Input
             type="time"
-            disabled={txConfirmed}
+            disabled={verifying}
             id="start-time-picker"
             step="1"
             value={startTime}
@@ -468,7 +492,7 @@ export const DateTimePicker = ({
           </Label>
           <Input
             type="time"
-            disabled={txConfirmed}
+            disabled={verifying}
             id="end-time-picker"
             step="1"
             value={endTime}
@@ -482,18 +506,67 @@ export const DateTimePicker = ({
 };
 
 export const SelectResolutionCard = ({
-  txConfirmed,
+  verifying,
+  servergen,
+  setServergen,
 }: {
-  txConfirmed: boolean;
+  verifying: boolean;
+  servergen: boolean;
+  setServergen: (servergen: boolean) => void;
 }) => {
   return (
+    // <div className="w-full">
+    //   <FieldGroup>
+    //     <FieldSet>
+    //       <FieldLabel className="hidden"></FieldLabel>
+    //       <FieldDescription className="hidden"></FieldDescription>
+    //       <RadioGroup defaultValue="autoresolve">
+    //         <FieldLabel htmlFor="autoresolve" className="cursor-pointer">
+    //           <Field orientation="horizontal">
+    //             <FieldContent>
+    //               <FieldTitle>Resolve Automatically</FieldTitle>
+    //               <FieldDescription>
+    //                 Secret Key will be stored in the server.
+    //               </FieldDescription>
+    //             </FieldContent>
+    //             <RadioGroupItem
+    //               disabled={verifying}
+    //               value="autoresolve"
+    //               id="autoresolve"
+    //             />
+    //           </Field>
+    //         </FieldLabel>
+    //         <FieldLabel htmlFor="solve-manually" className="cursor-pointer">
+    //           <Field orientation="horizontal">
+    //             <FieldContent>
+    //               <FieldTitle>Resolve Manually</FieldTitle>
+    //               <FieldDescription>No secret will be stored.</FieldDescription>
+    //             </FieldContent>
+    //             <RadioGroupItem
+    //               disabled={verifying}
+    //               value="solve-manually"
+    //               id="solve-manually"
+    //             />
+    //           </Field>
+    //         </FieldLabel>
+    //       </RadioGroup>
+    //     </FieldSet>
+    //   </FieldGroup>
+    // </div>
     <div className="w-full">
       <FieldGroup>
         <FieldSet>
           <FieldLabel className="hidden"></FieldLabel>
           <FieldDescription className="hidden"></FieldDescription>
-          <RadioGroup defaultValue="autoresolve">
-            <FieldLabel htmlFor="autoresolve" className="cursor-pointer">
+          <RadioGroup
+            value={servergen ? "autoresolve" : "solve-manually"}
+            onValueChange={(val) => setServergen(val === "autoresolve")}
+          >
+            <FieldLabel
+              htmlFor="autoresolve"
+              className="cursor-pointer"
+              onClick={() => !verifying && setServergen(true)}
+            >
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldTitle>Resolve Automatically</FieldTitle>
@@ -502,20 +575,24 @@ export const SelectResolutionCard = ({
                   </FieldDescription>
                 </FieldContent>
                 <RadioGroupItem
-                  disabled={txConfirmed}
+                  disabled={verifying}
                   value="autoresolve"
                   id="autoresolve"
                 />
               </Field>
             </FieldLabel>
-            <FieldLabel htmlFor="solve-manually" className="cursor-pointer">
+            <FieldLabel
+              htmlFor="solve-manually"
+              className="cursor-pointer"
+              onClick={() => !verifying && setServergen(false)}
+            >
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldTitle>Resolve Manually</FieldTitle>
                   <FieldDescription>No secret will be stored.</FieldDescription>
                 </FieldContent>
                 <RadioGroupItem
-                  disabled={txConfirmed}
+                  disabled={verifying}
                   value="solve-manually"
                   id="solve-manually"
                 />

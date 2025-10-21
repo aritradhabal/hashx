@@ -206,3 +206,7 @@ export async function verifySecret(txHash: `0x${string}`) {
     marketId: _marketId,
   };
 }
+
+export async function getMarkets(){
+  
+}
