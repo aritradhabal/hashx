@@ -31,8 +31,6 @@ import {
   wagmiContractConfig,
   CreateVoteFactoryContractConfig,
 } from "@/utils/contracts";
-import { useQueryClient } from "@tanstack/react-query";
-import { getBalanceQueryKey } from "wagmi/query";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -78,17 +76,22 @@ export const CreateVote = () => {
   const [BtnClicked, setBtnClicked] = useState(false);
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
   const [timeError, setTimeError] = useState<boolean>(false);
+  const [txConfirmed, setTxConfirmed] = useState<boolean>(false);
 
-  const { data: receipt, isSuccess: isConfirmed } = useTransactionReceipt({
+  const {
+    data: receipt,
+    isSuccess: isConfirmed,
+    isError,
+  } = useTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
       enabled: !!txHash,
     },
   });
   useEffect(() => {
-    if (!txHash) return;
-    console.log("txhash", txHash);
-  }, [txHash, isConfirmed]);
+    if (!isConfirmed) return;
+    setTxConfirmed(true);
+  }, [isConfirmed]);
 
   const { data: userDeposit } = useReadContract({
     ...wagmiContractConfig,
@@ -131,18 +134,6 @@ export const CreateVote = () => {
     }));
   }, [args.endTimestamp]);
 
-  // useEffect(() => {
-  //   console.log(
-  //     "args:",
-  //     Object.fromEntries(
-  //       Object.entries(args).map(([k, v]) => [
-  //         k,
-  //         typeof v === "bigint" ? v.toString() : v,
-  //       ])
-  //     )
-  //   );
-  // }, [args]);
-
   return (
     <>
       <Dialog>
@@ -168,6 +159,7 @@ export const CreateVote = () => {
               <Input
                 type="number"
                 placeholder="Amount"
+                disabled={txConfirmed}
                 value={amount > 0 ? amount : ""}
                 onChange={(e) => {
                   setAmount(Number(e.target.value));
@@ -189,12 +181,13 @@ export const CreateVote = () => {
                       rewards: BigInt(Number(amount - 10) * 1e8),
                     }));
                   }}
-                  disabled={amount - 10 < 0}
+                  disabled={amount - 10 < 0 || txConfirmed}
                 >
                   <FaMinus />
                 </Button>
                 <Button
                   variant={"outline"}
+                  disabled={txConfirmed}
                   onClick={() => {
                     setAmount(maxTokens);
                     setArgs((prev: argsT) => ({
@@ -214,18 +207,17 @@ export const CreateVote = () => {
                       rewards: BigInt(Number(amount + 10) * 1e8),
                     }));
                   }}
-                  disabled={amount + 10 > maxTokens}
+                  disabled={amount + 10 > maxTokens || txConfirmed}
                 >
                   <FaPlus />
                 </Button>
               </CardAction>
               <DateTimePicker
-                args={args}
+                txConfirmed={txConfirmed}
                 setArgs={setArgs}
-                timeError={timeError}
                 setTimeError={setTimeError}
               />
-              <SelectResolutionCard />
+              <SelectResolutionCard txConfirmed={txConfirmed} />
             </CardFooter>
           </Card>
 
@@ -233,109 +225,114 @@ export const CreateVote = () => {
             <DialogClose asChild>
               <Button variant="outline">Cancel</Button>
             </DialogClose>
-            <Button
-              disabled={
-                amount <= 0 || amount > maxTokens || BtnClicked || timeError
-              }
-              onClick={async () => {
-                setBtnClicked(true);
-
-                const {
-                  success: storedInServer,
-                  publicKey,
-                  hashedSK,
-                  n,
-                  a,
-                  t,
-                  skLocked,
-                } = await generateKeyPair(true, args);
-                console.log(storedInServer);
-                if (!storedInServer) {
-                  setBtnClicked(false);
-                  return;
+            {!txConfirmed ? (
+              <Button
+                disabled={
+                  amount <= 0 || amount > maxTokens || BtnClicked || timeError
                 }
-                setArgs((prev: argsT) => ({
-                  ...prev,
-                  N: n,
-                  a: a,
-                  t: t,
-                  skLocked: skLocked,
-                  hashedSK: hashedSK,
-                  publicKey: publicKey,
-                }));
-                const callArgs = {
-                  ...args,
-                  N: n,
-                  a,
-                  t,
-                  skLocked,
-                  hashedSK,
-                  publicKey,
-                };
-                console.log(
-                  "callargs:",
-                  Object.fromEntries(
-                    Object.entries(callArgs).map(([k, v]) => [
-                      k,
-                      typeof v === "bigint" ? v.toString() : v,
-                    ])
-                  )
-                );
-                const toastId = toast.loading("Transaction in progress...");
-                try {
-                  const txHash = await writeContractAsync({
-                    address: CreateVoteFactoryContractConfig.address,
-                    abi: CreateVoteFactoryContractConfig.abi,
-                    functionName: "createVoteContracts",
-                    args: [
-                      callArgs.marketId,
-                      callArgs.optionA,
-                      callArgs.optionB,
-                      callArgs.rewards,
-                      callArgs.startTimestamp,
-                      callArgs.endTimestamp,
-                      callArgs.thresholdVotes,
-                      callArgs.hbarLockingContractAddress,
-                      callArgs.N,
-                      callArgs.t,
-                      callArgs.a,
-                      callArgs.skLocked,
-                      callArgs.hashedSK,
-                      callArgs.publicKey,
-                    ],
-                  });
-                  setTxHash(txHash);
-                  toast.success("Transaction successful", {
-                    id: toastId,
-                    action: {
-                      label: "View on Explorer",
-                      onClick: () => {
-                        window.open(
-                          `https://hashscan.io/testnet/transaction/${txHash}`,
-                          "_blank"
-                        );
+                onClick={async () => {
+                  setBtnClicked(true);
+
+                  const {
+                    success: storedInServer,
+                    publicKey,
+                    hashedSK,
+                    n,
+                    a,
+                    t,
+                    skLocked,
+                  } = await generateKeyPair(true, args);
+                  console.log(storedInServer);
+                  if (!storedInServer) {
+                    setBtnClicked(false);
+                    return;
+                  }
+                  setArgs((prev: argsT) => ({
+                    ...prev,
+                    N: n,
+                    a: a,
+                    t: t,
+                    skLocked: skLocked,
+                    hashedSK: hashedSK,
+                    publicKey: publicKey,
+                  }));
+                  const callArgs = {
+                    ...args,
+                    N: n,
+                    a,
+                    t,
+                    skLocked,
+                    hashedSK,
+                    publicKey,
+                  };
+                  console.log(
+                    "callargs:",
+                    Object.fromEntries(
+                      Object.entries(callArgs).map(([k, v]) => [
+                        k,
+                        typeof v === "bigint" ? v.toString() : v,
+                      ])
+                    )
+                  );
+                  const toastId = toast.loading("Transaction in progress...");
+                  try {
+                    const txHash = await writeContractAsync({
+                      address: CreateVoteFactoryContractConfig.address,
+                      abi: CreateVoteFactoryContractConfig.abi,
+                      functionName: "createVoteContracts",
+                      args: [
+                        callArgs.marketId,
+                        callArgs.optionA,
+                        callArgs.optionB,
+                        callArgs.rewards,
+                        callArgs.startTimestamp,
+                        callArgs.endTimestamp,
+                        callArgs.thresholdVotes,
+                        callArgs.hbarLockingContractAddress,
+                        callArgs.N,
+                        callArgs.t,
+                        callArgs.a,
+                        callArgs.skLocked,
+                        callArgs.hashedSK,
+                        callArgs.publicKey,
+                      ],
+                    });
+                    setTxHash(txHash);
+                    toast.success("Transaction successful", {
+                      id: toastId,
+                      action: {
+                        label: "View on Explorer",
+                        onClick: () => {
+                          window.open(
+                            `https://hashscan.io/testnet/transaction/${txHash}`,
+                            "_blank"
+                          );
+                        },
                       },
-                    },
-                  });
+                    });
+                    if (isConfirmed || isError) {
+                      setBtnClicked(false);
+                    }
+                  } catch (error) {
+                    toast.error("Transaction failed. Try again later.", {
+                      id: toastId,
+                    });
 
-                  setBtnClicked(false);
-                } catch (error) {
-                  toast.error("Transaction failed. Try again later.", {
-                    id: toastId,
-                  });
-
-                  setBtnClicked(false);
-                }
-              }}
-            >
-              {BtnClicked ? (
-                <>
-                  <Spinner /> Loading...
-                </>
-              ) : (
-                "Create Vote"
-              )}
-            </Button>
+                    setBtnClicked(false);
+                  }
+                }}
+              >
+                {BtnClicked ? (
+                  <>
+                    <Spinner /> Loading...
+                  </>
+                ) : (
+                  "Create Vote"
+                )}
+              </Button>
+            ) : (
+              <Button>Verify & Publish</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -344,14 +341,15 @@ export const CreateVote = () => {
 };
 
 export const DateTimePicker = ({
-  args,
   setArgs,
-  timeError,
+
   setTimeError,
+  txConfirmed,
 }: {
-  args: argsT;
+  txConfirmed: boolean;
+
   setArgs: Dispatch<SetStateAction<argsT>>;
-  timeError: boolean;
+
   setTimeError: (timeError: boolean) => void;
 }) => {
   function getFormattedTime(date: Date): string {
@@ -426,10 +424,18 @@ export const DateTimePicker = ({
                 captionLayout="label"
                 fixedWeeks={true}
                 required
-                disabled={{
-                  before: new Date(Date.now()),
-                  after: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
-                }}
+                // disabled={{
+                //   before: new Date(Date.now()),
+                //   after: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
+                // }}
+                disabled={[
+                  {
+                    before: new Date(Date.now()),
+                    after: new Date(Date.now() + 1000 * 60 * 60 * 24 * 15),
+                  },
+                  txConfirmed && (() => true),
+                ].filter(Boolean)}
+                hideNavigation={txConfirmed}
                 onSelect={(date) => {
                   setDate(date);
                   setOpen(false);
@@ -444,6 +450,7 @@ export const DateTimePicker = ({
           </Label>
           <Input
             type="time"
+            disabled={txConfirmed}
             id="start-time-picker"
             step="1"
             value={startTime}
@@ -457,6 +464,7 @@ export const DateTimePicker = ({
           </Label>
           <Input
             type="time"
+            disabled={txConfirmed}
             id="end-time-picker"
             step="1"
             value={endTime}
@@ -469,7 +477,11 @@ export const DateTimePicker = ({
   );
 };
 
-export const SelectResolutionCard = () => {
+export const SelectResolutionCard = ({
+  txConfirmed,
+}: {
+  txConfirmed: boolean;
+}) => {
   return (
     <div className="w-full">
       <FieldGroup>
@@ -485,7 +497,11 @@ export const SelectResolutionCard = () => {
                     Secret Key will be stored in the server.
                   </FieldDescription>
                 </FieldContent>
-                <RadioGroupItem value="autoresolve" id="autoresolve" />
+                <RadioGroupItem
+                  disabled={txConfirmed}
+                  value="autoresolve"
+                  id="autoresolve"
+                />
               </Field>
             </FieldLabel>
             <FieldLabel htmlFor="solve-manually" className="cursor-pointer">
@@ -494,7 +510,11 @@ export const SelectResolutionCard = () => {
                   <FieldTitle>Resolve Manually</FieldTitle>
                   <FieldDescription>No secret will be stored.</FieldDescription>
                 </FieldContent>
-                <RadioGroupItem value="solve-manually" id="solve-manually" />
+                <RadioGroupItem
+                  disabled={txConfirmed}
+                  value="solve-manually"
+                  id="solve-manually"
+                />
               </Field>
             </FieldLabel>
           </RadioGroup>

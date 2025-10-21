@@ -25,6 +25,7 @@ const Navbar = () => {
             alt="logo"
             width={100}
             height={100}
+            className="h-8 w-auto"
             priority
           />
         </Link>
