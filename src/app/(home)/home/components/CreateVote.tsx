@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
   Card,
@@ -40,9 +40,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ChevronDownIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { HBAR_LOCKING_CONTRACT_ADDRESS } from "@/constants";
-import { useWaitForTransactionReceipt } from "wagmi";
 import { useTransactionReceipt } from "wagmi";
 import {
   Field,
@@ -54,7 +52,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-
+import { calculateTforTimestamp } from "@/app/actions/getTime";
 interface argsT {
   marketId: bigint | undefined;
   optionA: bigint | undefined;
@@ -64,11 +62,11 @@ interface argsT {
   endTimestamp: bigint | undefined;
   thresholdVotes: number | undefined;
   hbarLockingContractAddress: `0x${string}` | undefined;
-  N: `0x${string}` | undefined; // bytes
+  N: `0x${string}` | undefined;
   t: bigint | undefined;
   a: number | undefined;
-  skLocked: `0x${string}` | undefined; // bytes32
-  hashedSK: `0x${string}` | undefined; // bytes32
+  skLocked: `0x${string}` | undefined;
+  hashedSK: `0x${string}` | undefined;
 }
 export const CreateVote = () => {
   const { address } = useAccount();
@@ -113,13 +111,23 @@ export const CreateVote = () => {
     thresholdVotes: 1,
     hbarLockingContractAddress: HBAR_LOCKING_CONTRACT_ADDRESS,
     N: "0xc7e4f83e0265987d8b5057f6828678b0987af3e2faec8a69e4417afe960805812a85fcee82e4d5b9fe6afb2f6347d5e8450af9f895229c61758fbeb2b910c9d26c8b1bbebff7fe75236c9947816533114ffd4edd3a607d42cb6cb0605da6c1bed550a3f35d58697c0b3129c32ff9ead2edb093f2a057e7fb15e82c464ad7363fc166da37bda642c6a22787cab5186457035da84d7a767b23280a2a74693f45cf0e53abff735ad6769ced77066108ab81131ee2ecd15e031d1fd2f401b21a71fac6cbb51f4e315b9ee79450b793b3adb9e2e33a86043319690da67085d0c313d3c487844370a8146933df15cbec133f7c5017771c1f0bfbfb95f9657b5cfbf322a780eeb67f92f3f3fc9e92f3a6b3f6b737d006872b261c54a7f9f5f3626d370fad30c21eb4356c970294cb640aaa3028d6e53b89d0e0e50dc2a5cbc9c9da26e5a5ba4754ee00a3e2a1f204c52d14e5643b4e5005e905b80f9020f34cb94271d4f7221e1a7ac07188fff5d951d6de19f827690bfdb95920a98047c5739a66d6ede7839cf3307073e26649f5e59844e9da6f6f703798951d6ec5e14b1080340e27616eb9e52c113b3fe7e98db73afbf8da776b7b2360cfd014cd7a8d30a37671a871cba653fc493a224e3ace701f261e7e594b5dfb74ad5adecf60b7452da03607897aefeabd666a48b1efe13a98d38fa42640d5eee435a1837a2be4627660c0c7",
-    t: BigInt(100000),
+    t: undefined,
     a: 2,
     skLocked:
       "0x504b185df28721f6905923008cc8e3985ea4dcaa53a848ff29eba4960aeecc7c",
     hashedSK:
       "0xb10e2d527612073b26eecdfd717e6a320cf44b4afac2b0732d9fcbe2b7fa0cf6",
   });
+
+  useMemo(() => {
+    if (!args.endTimestamp) return;
+    const t = calculateTforTimestamp(args.endTimestamp as bigint);
+    console.log(t.toString());
+    setArgs((prev: argsT) => ({
+      ...prev,
+      t: t,
+    }));
+  }, [args.endTimestamp]);
 
   return (
     <>
@@ -218,7 +226,6 @@ export const CreateVote = () => {
               onClick={async () => {
                 setBtnClicked(true);
                 const toastId = toast.loading("Transaction in progress...");
-
                 try {
                   const txHash = await writeContractAsync({
                     address: CreateVoteFactoryContractConfig.address,
