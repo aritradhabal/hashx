@@ -10,7 +10,7 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { RiPerplexityFill } from "react-icons/ri";
 import { FaXTwitter } from "react-icons/fa6";
@@ -29,34 +29,55 @@ import {
 import {
   InputGroup,
   InputGroupAddon,
-  InputGroupButton,
   InputGroupInput,
-  InputGroupText,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { MdContentCopy } from "react-icons/md";
+  getActiveVotes,
+  getResolvedVotes,
+  getUpcomingVotes,
+} from "@/actions/db-actions";
+import type { VoteCardData } from "@/actions/db-actions";
+import { keccak256 } from "viem";
+type TabValue = "Ongoing" | "Resolved" | "Upcoming";
 
 export const Voting = () => {
-  const { address } = useAccount();
-  const { data: userDeposit } = useReadContract({
-    ...wagmiContractConfig,
-    functionName: "checkUserDeposit",
-    args: [address],
-    query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
-      refetchInterval: 3000,
-    },
-  });
-  const stakedAmount = Math.floor(
-    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
-  );
+  const [activeTab, setActiveTab] = React.useState<TabValue>("Ongoing");
+  const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
+  const [resolved, setResolved] = useState<VoteCardData[]>([]);
+  const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
+
+  useEffect(() => {
+    const fetchContracts = async (activeTab: TabValue) => {
+      if (activeTab === "Ongoing") {
+        const { success, data } = await getActiveVotes();
+
+        if (success && data) {
+          if (data.length != ongoing.length) {
+            setOngoing(data);
+          }
+        }
+      }
+      if (activeTab === "Resolved") {
+        const { success, data } = await getResolvedVotes();
+        if (success && data) {
+          if (data.length != resolved.length) {
+            setResolved(data);
+          }
+        }
+      }
+      if (activeTab === "Upcoming") {
+        const { success, data } = await getUpcomingVotes();
+        if (success && data) {
+          if (data.length != upcoming.length) {
+            setUpcoming(data);
+          }
+        }
+      }
+    };
+    fetchContracts(activeTab);
+  }, [activeTab]);
   const pendingVotes = 10;
   const resolvedVotes = 10;
 
@@ -85,7 +106,8 @@ export const Voting = () => {
         </Item>
 
         <Tabs
-          defaultValue="Ongoing"
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as TabValue)}
           className="w-xs md:w-3xl pb-5 flex flex-col items-center justify-center gap-y-5 "
         >
           <TabsList className="w-full">
@@ -101,40 +123,69 @@ export const Voting = () => {
           </TabsList>
           <TabsContent value="Ongoing">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
-              {votes.map((vote) => (
+              {ongoing.map((vote) => (
                 <VoteCard
-                  key={vote.title}
+                  key={vote.marketId}
                   title={vote.title}
                   description={vote.description}
-                  optionA={vote.optionA}
-                  optionB={vote.optionB}
+                  optionA={vote.optionATitle}
+                  optionB={vote.optionBTitle}
                   showBadges={true}
+                  N={vote.pp.N}
+                  t={vote.pp.t}
+                  a={vote.pp.a}
+                  skLocked={vote.pp.skLocked}
+                  publicKey={vote.pp.publicKey}
+                  rewards={vote.rewards}
+                  marketId={vote.marketId}
+                  server={vote.server}
+                  hashedSK={vote.pp.hashedSK}
                 />
               ))}
             </div>
           </TabsContent>
           <TabsContent value="Resolved">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
-              {votes.slice(0, 2).map((vote) => (
+              {resolved.slice(0, 2).map((vote) => (
                 <VoteCard
-                  key={vote.title}
+                  key={vote.marketId}
                   title={vote.title}
                   description={vote.description}
-                  optionA={vote.optionA}
-                  optionB={vote.optionB}
+                  optionA={vote.optionATitle}
+                  optionB={vote.optionBTitle}
+                  showBadges={true}
+                  N={vote.pp.N}
+                  t={vote.pp.t}
+                  a={vote.pp.a}
+                  skLocked={vote.pp.skLocked}
+                  publicKey={vote.pp.publicKey}
+                  rewards={vote.rewards}
+                  marketId={vote.marketId}
+                  server={vote.server}
+                  hashedSK={vote.pp.hashedSK}
                 />
               ))}
             </div>
           </TabsContent>
           <TabsContent value="Upcoming">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
-              {votes.slice(0, 2).map((vote) => (
+              {upcoming.slice(0, 2).map((vote) => (
                 <VoteCard
-                  key={vote.title}
+                  key={vote.marketId}
                   title={vote.title}
                   description={vote.description}
-                  optionA={vote.optionA}
-                  optionB={vote.optionB}
+                  optionA={vote.optionATitle}
+                  optionB={vote.optionBTitle}
+                  showBadges={true}
+                  N={vote.pp.N}
+                  t={vote.pp.t}
+                  a={vote.pp.a}
+                  skLocked={vote.pp.skLocked}
+                  publicKey={vote.pp.publicKey}
+                  rewards={vote.rewards}
+                  marketId={vote.marketId}
+                  server={vote.server}
+                  hashedSK={vote.pp.hashedSK}
                 />
               ))}
             </div>
@@ -151,12 +202,30 @@ export const VoteCard = ({
   title,
   description,
   showBadges,
+  N,
+  t,
+  a,
+  skLocked,
+  publicKey,
+  rewards,
+  marketId,
+  server,
+  hashedSK,
 }: {
   optionA: string;
   optionB: string;
   title: string;
   description: string;
   showBadges?: boolean;
+  N: string;
+  t: string;
+  a: number;
+  skLocked: string;
+  publicKey: string;
+  rewards: string;
+  marketId: string;
+  server: boolean;
+  hashedSK: string;
 }) => {
   return (
     <Item variant="outline" className="w-xs md:w-3xl">
@@ -168,10 +237,10 @@ export const VoteCard = ({
       </ItemContent>
       <ItemActions>
         <Button variant="outline" size="sm">
-          {optionA}
+          <p className="tracking-wide">{optionA}</p>
         </Button>
         <Button variant="outline" size="sm">
-          {optionB}
+          <p className="tracking-wide">{optionB}</p>
         </Button>
       </ItemActions>
       {showBadges && (
@@ -210,12 +279,21 @@ export const VoteCard = ({
             </Badge>
           </div>
           <div className="flex flex-row gap-x-1 items-center justify-center flex-wrap">
-            <DetailsDialog />
+            <DetailsDialog
+              marketId={marketId}
+              N={N}
+              t={t}
+              a={a}
+              skLocked={skLocked}
+              publicKey={publicKey}
+              server={server}
+              hashedSK={hashedSK}
+            />
             <Badge
               variant={"noEffect"}
               className="bg-background text-card-foreground border-background"
             >
-              Reward: 100 &#8463;
+              Reward: {Math.floor(Number(rewards) / 1e8)} &#8463;
             </Badge>
           </div>
         </ItemFooter>
@@ -224,9 +302,36 @@ export const VoteCard = ({
   );
 };
 
-export const DetailsDialog = () => {
-  const [sk_Recovered, setSkRecovered] = useState("");
+export const DetailsDialog = ({
+  N,
+  t,
+  a,
+  skLocked,
+  publicKey,
+  marketId,
+  server,
+  hashedSK,
+}: {
+  N: string;
+  t: string;
+  a: number;
+  skLocked: string;
+  publicKey: string;
+  marketId: string;
+  server: boolean;
+  hashedSK: string;
+}) => {
+  const [sk_Recovered, setSkRecovered] = useState<`0x${string}`>();
   const [isVerified, setIsVerified] = useState(false);
+  const verifyPuzzle = () => {
+    if (!sk_Recovered) return;
+    const userKeccakhash = keccak256(sk_Recovered);
+    if (userKeccakhash === hashedSK) {
+      setIsVerified(true);
+    } else {
+      setIsVerified(false);
+    }
+  };
   return (
     <Dialog>
       <DialogTrigger>
@@ -237,15 +342,13 @@ export const DetailsDialog = () => {
       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Public Parameters</DialogTitle>
-          <DialogDescription>Vote ID: 0</DialogDescription>
+          <DialogDescription>Vote ID: {marketId}</DialogDescription>
         </DialogHeader>
         <InputGroup>
           <InputGroupTextarea
             readOnly={true}
             disabled={true}
-            value={
-              "b13646606242097565b2e7afa1fae30b19d82cf78d9fd82b5a9fa61e639f2590ac3e3010e2798007568bf77413226ca004dbb12746d3295c1448750e0495be2867fec0f80cd35f3344092784503e5cb7b0c33976be7212bfc2a87bc7acede34dfc2685dd6f546f31f688fa3b8bef5d98fe8c0279d026e1a5fd0c404754bfc6f704a5d53bcb4713bc52522f8cbb8bb827497e5cf2825047696910bb9ddad14097059722d13d5cb85391feb0ab490ca0f0408ea0a8c86ecf96658753bee9afae152d6e83f5dbdf8cb8b044122f4f8dc89caf58e54b300fc6c98be77d46a7cf6186a54f04abb6aaaadd79a31d152bf65edf7e2355b21c6b9462425804b4ab4e8fab068e6a4f62a2cf4bfe6abcd57a70b70b28b987fd8c2567278d89408e45cef3eba469b8172a01ac0a229cbfaa0a4eb5ef601272332db547bbd47f068488ca339b6c587624561fd06e32950f2347e9a395233218e65e9067c4e48c122da61a964f47ed4056f67a64df139f2adcad12dac1dfdbad8e3b44243f867eb5df801c150a916bc7e7d646d69415ea67b62398e2875cc6f51ac4bd9d1a75ca2c757e52903324b5f12cb41e8fb27cf848a4da2969e7afd00b46092eb2de19a4c511d2914f5f06f3371ca1f1391880db80c53735e5a6bf90a70174cddf0df5c37867f669fd88529284ab1b71f8fd43eddc509f8acc66575cddc10d48b90f055424c19ba78581"
-            }
+            value={N}
             id="public-parameters-n"
             className="text-intputs resize-none break-all text-xs font-mono !cursor-text max-h-8 md:max-h-16 overflow-y-scroll "
           />
@@ -260,7 +363,7 @@ export const DetailsDialog = () => {
             <InputGroupInput
               readOnly={true}
               disabled={true}
-              value={"2"}
+              value={a.toString()}
               id="public-parameters-a"
               className="resize-none break-all text-xs font-mono !cursor-text"
             />
@@ -274,7 +377,7 @@ export const DetailsDialog = () => {
             <InputGroupInput
               readOnly={true}
               disabled={true}
-              value={"10000"}
+              value={t}
               id="public-parameters-t"
               className="resize-none break-all text-xs font-mono !cursor-text"
             />
@@ -289,93 +392,118 @@ export const DetailsDialog = () => {
           <InputGroupTextarea
             readOnly={true}
             disabled={true}
-            value={
-              "c67b1bb15511bb83fb9da594fb026efd2e703c59173594fcc54b640c42d1c375"
-            }
+            value={skLocked}
             id="public-parameters-sk"
             className="resize-none break-all text-xs font-mono !cursor-text"
           />
           <InputGroupAddon align="block-start">
             <Label htmlFor="public-parameters-sk" className="text-foreground">
-              Hashed SecretKey
+              SecretKey (SK_Locked)
             </Label>
           </InputGroupAddon>
         </InputGroup>
-        <InputGroup>
-          <InputGroupInput
-            value={sk_Recovered}
-            onChange={(e) => {
-              setSkRecovered(e.target.value);
-            }}
-            id="public-parameters-soln"
-            placeholder="Enter computed puzzle solution"
-            className="resize-none break-all text-xs font-mono !cursor-text"
-          />
-          <InputGroupAddon align="block-start">
-            <Label htmlFor="public-parameters-soln" className="text-foreground">
-              Secret Key (SK)
-            </Label>
-          </InputGroupAddon>
-        </InputGroup>
-        <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
-          <DialogClose asChild>
-            <Button variant="outline">Close</Button>
-          </DialogClose>
-          <div className="flex justify-center items-center gap-2 flex-wrap">
-            <Button type="button" disabled={!sk_Recovered}>
-              Verify
-            </Button>
-            <Button type="submit" disabled={!isVerified}>
-              Submit
-            </Button>
-          </div>
-        </DialogFooter>
+        {server === false ? (
+          <>
+            <InputGroup>
+              <InputGroupInput
+                value={sk_Recovered ?? ""}
+                onChange={(e) => {
+                  setSkRecovered(e.target.value as `0x${string}`);
+                }}
+                id="public-parameters-soln"
+                placeholder="Enter computed puzzle solution"
+                className="resize-none break-all text-xs font-mono !cursor-text"
+              />
+              <InputGroupAddon align="block-start">
+                <Label
+                  htmlFor="public-parameters-soln"
+                  className="text-foreground"
+                >
+                  Secret Key (SK)
+                </Label>
+              </InputGroupAddon>
+            </InputGroup>
+            <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+              <div className="flex justify-center items-center gap-2 flex-wrap">
+                <Button type="button" disabled={!sk_Recovered}>
+                  Verify
+                </Button>
+                <Button type="submit" disabled={!isVerified}>
+                  Submit
+                </Button>
+              </div>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <InputGroup>
+              <InputGroupTextarea
+                readOnly={true}
+                disabled={true}
+                value={publicKey}
+                id="public-parameters-public-key"
+                className="resize-none break-all text-xs font-mono !cursor-text"
+              />
+              <InputGroupAddon align="block-start">
+                <Label
+                  htmlFor="public-parameters-public-key"
+                  className="text-foreground"
+                >
+                  Public Key (PK)
+                </Label>
+              </InputGroupAddon>
+            </InputGroup>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
 
-export const votes = [
-  {
-    title: "Who will win the election?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-  {
-    title: "Who will win the game?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-  {
-    title: "Who will win the movie awards?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-  {
-    title: "Who will win the tech awards?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-  {
-    title: "Who will win the music awards?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-  {
-    title: "Who will win the sports awards?",
-    description:
-      "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-    optionA: "Option A",
-    optionB: "Option B",
-  },
-];
+// export const votes = [
+//   {
+//     title: "Who will win the election?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+//   {
+//     title: "Who will win the game?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+//   {
+//     title: "Who will win the movie awards?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+//   {
+//     title: "Who will win the tech awards?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+//   {
+//     title: "Who will win the music awards?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+//   {
+//     title: "Who will win the sports awards?",
+//     description:
+//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
+//     optionA: "Option A",
+//     optionB: "Option B",
+//   },
+// ];

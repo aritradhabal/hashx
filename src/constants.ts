@@ -1,4 +1,4 @@
-import HBARLockingContractABI from "../ABI/HBARlockingContract.json" with { type: "json" };
+import HBARLockingContractABI from "../ABI/LockingContract.json" with { type: "json" };
 import FactoryContractABI from "../ABI/CreateVoteFactory.json"
 import CreateVoteContractABI from "../ABI/CreateVote.json"
 

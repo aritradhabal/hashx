@@ -80,10 +80,7 @@ export const CreateVote = () => {
   const [servergen, setServergen] = useState<boolean>(true);
   const [dialogOpen, setDialogppen] = useState<boolean>(false);
 
-  const {
-    isSuccess: isConfirmed,
-    isError,
-  } = useWaitForTransactionReceipt({
+  const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
       enabled: !!txHash,
@@ -98,18 +95,22 @@ export const CreateVote = () => {
       const { success } = await verifySecret(txHash as `0x${string}`);
       if (!success) {
         console.log("failed");
-        setVerifying(false);
+
         toast.error("Couldn't Verify Contract! Try again...", {
           duration: 3500,
         });
         setDialogppen(false);
+        setVerifying(false);
+        setBtnClicked(false);
       } else {
         console.log("perfect");
-        setVerifying(false);
+
         toast.success("Contract Created Successfully", {
           duration: 3500,
         });
         setDialogppen(false);
+        setVerifying(false);
+        setBtnClicked(false);
       }
     };
     verifyTxHash();
@@ -128,10 +129,9 @@ export const CreateVote = () => {
   const maxTokens = Math.floor(
     Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
   );
-  const randomNumber = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
   const [args, setArgs] = useState<argsT>({
-    marketId: BigInt(randomNumber),
+    marketId: undefined,
     optionA: BigInt(0),
     optionB: BigInt(1),
     rewards: undefined,
@@ -258,7 +258,9 @@ export const CreateVote = () => {
                 }
                 onClick={async () => {
                   setBtnClicked(true);
-
+                  const marketId = BigInt(
+                    Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+                  );
                   const {
                     success: storedInServer,
                     publicKey,
@@ -267,14 +269,20 @@ export const CreateVote = () => {
                     a,
                     t,
                     skLocked,
-                  } = await generateKeyPair(servergen, args);
+                  } = await generateKeyPair(
+                    servergen,
+                    args.t as bigint,
+                    marketId
+                  );
 
                   if (!storedInServer) {
                     setBtnClicked(false);
                     return;
                   }
+
                   setArgs((prev: argsT) => ({
                     ...prev,
+                    marketId: marketId,
                     N: n,
                     a: a,
                     t: t,
@@ -284,6 +292,7 @@ export const CreateVote = () => {
                   }));
                   const callArgs = {
                     ...args,
+                    marketId,
                     N: n,
                     a,
                     t,

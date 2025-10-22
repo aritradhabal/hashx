@@ -5,13 +5,14 @@ import {
   CREATEVOTE_FACTORY_ADDRESS,
   HBAR_LOCKING_CONTRACT_ADDRESS,
 } from "@/constants";
-import { eq } from "drizzle-orm";
+import { eq, and, lte, gte, lt, gt } from "drizzle-orm";
 import { getTransactionReceipt } from "@wagmi/core";
 import { config } from "@/utils/WagmiConfig";
 import { Address, Hex, hexToBigInt } from "viem";
 import { decodeAbiParameters, getAddress } from "viem";
 import { readContract } from "@wagmi/core";
 import { CreateVoteContractConfig } from "@/utils/contracts";
+
 export interface secretParamsT {
   marketId: bigint;
   N: `0x${string}`;
@@ -42,7 +43,31 @@ interface VoteConfigT {
   thresholdVotes: number;
   creator: Address;
 }
-
+export type VoteCardData = {
+  marketId: string;
+  title: string;
+  description: string;
+  rewards: string;
+  optionATitle: string;
+  optionBTitle: string;
+  startTimestamp: string;
+  endTimestamp: string;
+  contractAddress: string | null;
+  verified: boolean;
+  server: boolean;
+  pp: {
+    N: string;
+    t: string;
+    a: number;
+    skLocked: string;
+    hashedSK: string;
+    publicKey: string;
+  };
+  tallies: {
+    optionA: string;
+    optionB: string;
+  };
+};
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
@@ -207,6 +232,144 @@ export async function verifySecret(txHash: `0x${string}`) {
   };
 }
 
-export async function getMarkets(){
-  
+const _marketTitle = "Who will win the election?";
+const _marketDescription =
+  "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option";
+const toVoteCardData = (row: {
+  marketId: bigint;
+  N: string;
+  t: bigint;
+  a: number;
+  skLocked: string;
+  hashedSK: string;
+  publicKey: string;
+  verified: boolean;
+  server: boolean;
+  contractAddress: string | null;
+  optionA: bigint | null;
+  optionB: bigint | null;
+  rewards: bigint | null;
+  startTimeStamp: bigint | null;
+  endTimestamp: bigint | null;
+}): VoteCardData => ({
+  marketId: row.marketId.toString(),
+  title: _marketTitle,
+  description: _marketDescription,
+  optionATitle: "True/Yes",
+  optionBTitle: "False/No",
+  rewards: row.rewards?.toString() ?? "0",
+  startTimestamp: row.startTimeStamp?.toString() ?? "0",
+  endTimestamp: row.endTimestamp?.toString() ?? "0",
+  contractAddress: row.contractAddress ?? null,
+  verified: !!row.verified,
+  server: !!row.server,
+  pp: {
+    N: row.N,
+    t: row.t.toString(),
+    a: row.a,
+    skLocked: row.skLocked,
+    hashedSK: row.hashedSK,
+    publicKey: row.publicKey,
+  },
+  tallies: {
+    optionA: row.optionA?.toString() ?? "0",
+    optionB: row.optionB?.toString() ?? "1",
+  },
+});
+
+export async function getActiveVotes() {
+  try {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+
+    const rows = await db
+      .select({
+        marketId: secrets.marketId,
+        N: secrets.N,
+        t: secrets.t,
+        a: secrets.a,
+        skLocked: secrets.skLocked,
+        hashedSK: secrets.hashedSK,
+        publicKey: secrets.publicKey,
+        verified: secrets.verified,
+        server: secrets.server,
+        contractAddress: secrets.contractAddress,
+        optionA: secrets.optionA,
+        optionB: secrets.optionB,
+        rewards: secrets.rewards,
+        startTimeStamp: secrets.startTimeStamp,
+        endTimestamp: secrets.endTimestamp,
+      })
+      .from(secrets)
+      .where(
+        and(
+          lte(secrets.startTimeStamp, now),
+          gte(secrets.endTimestamp, now),
+          eq(secrets.verified, true)
+        )
+      );
+
+    return { success: true, data: rows.map(toVoteCardData) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+export async function getResolvedVotes() {
+  try {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+
+    const rows = await db
+      .select({
+        marketId: secrets.marketId,
+        N: secrets.N,
+        t: secrets.t,
+        a: secrets.a,
+        skLocked: secrets.skLocked,
+        hashedSK: secrets.hashedSK,
+        publicKey: secrets.publicKey,
+        verified: secrets.verified,
+        server: secrets.server,
+        contractAddress: secrets.contractAddress,
+        optionA: secrets.optionA,
+        optionB: secrets.optionB,
+        rewards: secrets.rewards,
+        startTimeStamp: secrets.startTimeStamp,
+        endTimestamp: secrets.endTimestamp,
+      })
+      .from(secrets)
+      .where(and(lt(secrets.endTimestamp, now), eq(secrets.verified, true)));
+
+    return { success: true, data: rows.map(toVoteCardData) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+export async function getUpcomingVotes() {
+  try {
+    const now = BigInt(Math.floor(Date.now() / 1000));
+
+    const rows = await db
+      .select({
+        marketId: secrets.marketId,
+        N: secrets.N,
+        t: secrets.t,
+        a: secrets.a,
+        skLocked: secrets.skLocked,
+        hashedSK: secrets.hashedSK,
+        publicKey: secrets.publicKey,
+        verified: secrets.verified,
+        server: secrets.server,
+        contractAddress: secrets.contractAddress,
+        optionA: secrets.optionA,
+        optionB: secrets.optionB,
+        rewards: secrets.rewards,
+        startTimeStamp: secrets.startTimeStamp,
+        endTimestamp: secrets.endTimestamp,
+      })
+      .from(secrets)
+      .where(and(gt(secrets.startTimeStamp, now), eq(secrets.verified, true)));
+
+    return { success: true, data: rows.map(toVoteCardData) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
