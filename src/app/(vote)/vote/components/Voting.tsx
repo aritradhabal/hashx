@@ -146,7 +146,7 @@ export const Voting = () => {
           </TabsContent>
           <TabsContent value="Resolved">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
-              {resolved.slice(0, 2).map((vote) => (
+              {resolved.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
                   title={vote.title}
@@ -169,7 +169,7 @@ export const Voting = () => {
           </TabsContent>
           <TabsContent value="Upcoming">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
-              {upcoming.slice(0, 2).map((vote) => (
+              {upcoming.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
                   title={vote.title}
