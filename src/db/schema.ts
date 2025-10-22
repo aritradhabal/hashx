@@ -24,4 +24,8 @@ export const secrets = pgTable("secrets", {
   rewards: bigint("rewards", { mode: "bigint" }),
   startTimeStamp: bigint("startTimeStamp", { mode: "bigint" }),
   endTimestamp: bigint("endTimeStamp", { mode: "bigint" }),
+
+  solver: varchar("solver", { length: 80 }),
+  unlockedSecret: varchar("unlocked_secret", { length: 80 }),
+  resolvedOption: bigint("resolved_option", { mode: "bigint" }),
 });

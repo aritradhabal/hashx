@@ -8,7 +8,6 @@ import {
 import crypto from "crypto";
 import { keccak256, toHex } from "viem";
 import { createTimeLockPuzzle } from "./timelock";
-// import type { argsT } from "@/app/(home)/home/components/CreateVote";
 import { addSecrets } from "./db-actions";
 import type { secretParamsT } from "./db-actions";
 

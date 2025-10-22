@@ -5,7 +5,7 @@ import {
   CREATEVOTE_FACTORY_ADDRESS,
   HBAR_LOCKING_CONTRACT_ADDRESS,
 } from "@/constants";
-import { eq, and, lte, gte, lt, gt } from "drizzle-orm";
+import { eq, and, lte, gte, lt, gt, asc, desc } from "drizzle-orm";
 import { getTransactionReceipt } from "@wagmi/core";
 import { config } from "@/utils/WagmiConfig";
 import { Address, Hex, hexToBigInt } from "viem";
@@ -34,6 +34,7 @@ interface ppT {
   hashedSK: string;
   publicKey: string;
 }
+
 interface VoteConfigT {
   optionA: bigint;
   optionB: bigint;
@@ -67,10 +68,17 @@ export type VoteCardData = {
     optionA: string;
     optionB: string;
   };
+  data: {
+    solver: string | null;
+    unlockedSecret: string | null;
+    resolvedOption: bigint | null;
+  };
 };
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
+  getSolver: string;
+  getUnlockedSK: string;
 };
 
 export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
@@ -194,7 +202,6 @@ export async function verifySecret(txHash: `0x${string}`) {
 
   const normalizeHex = (v?: string) => (v ?? "").toLowerCase();
 
-  // Compare DB values with on-chain pp
   const matches =
     row.N === pp.N &&
     row.t === pp.t &&
@@ -251,6 +258,9 @@ const toVoteCardData = (row: {
   rewards: bigint | null;
   startTimeStamp: bigint | null;
   endTimestamp: bigint | null;
+  solver: string | null;
+  unlockedSecret: string | null;
+  resolvedOption: bigint | null;
 }): VoteCardData => ({
   marketId: row.marketId.toString(),
   title: _marketTitle,
@@ -275,6 +285,11 @@ const toVoteCardData = (row: {
     optionA: row.optionA?.toString() ?? "0",
     optionB: row.optionB?.toString() ?? "1",
   },
+  data: {
+    solver: row.solver ?? null,
+    unlockedSecret: row.unlockedSecret ?? null,
+    resolvedOption: row.resolvedOption ?? null,
+  },
 });
 
 export async function getActiveVotes() {
@@ -298,6 +313,9 @@ export async function getActiveVotes() {
         rewards: secrets.rewards,
         startTimeStamp: secrets.startTimeStamp,
         endTimestamp: secrets.endTimestamp,
+        solver: secrets.solver,
+        unlockedSecret: secrets.unlockedSecret,
+        resolvedOption: secrets.resolvedOption,
       })
       .from(secrets)
       .where(
@@ -306,7 +324,8 @@ export async function getActiveVotes() {
           gte(secrets.endTimestamp, now),
           eq(secrets.verified, true)
         )
-      );
+      )
+      .orderBy(desc(secrets.endTimestamp));
 
     return { success: true, data: rows.map(toVoteCardData) };
   } catch (error: any) {
@@ -334,9 +353,13 @@ export async function getResolvedVotes() {
         rewards: secrets.rewards,
         startTimeStamp: secrets.startTimeStamp,
         endTimestamp: secrets.endTimestamp,
+        solver: secrets.solver,
+        unlockedSecret: secrets.unlockedSecret,
+        resolvedOption: secrets.resolvedOption,
       })
       .from(secrets)
-      .where(and(lt(secrets.endTimestamp, now), eq(secrets.verified, true)));
+      .where(and(lt(secrets.endTimestamp, now), eq(secrets.verified, true)))
+      .orderBy(desc(secrets.endTimestamp));
 
     return { success: true, data: rows.map(toVoteCardData) };
   } catch (error: any) {
@@ -364,12 +387,42 @@ export async function getUpcomingVotes() {
         rewards: secrets.rewards,
         startTimeStamp: secrets.startTimeStamp,
         endTimestamp: secrets.endTimestamp,
+        solver: secrets.solver,
+        unlockedSecret: secrets.unlockedSecret,
+        resolvedOption: secrets.resolvedOption,
       })
       .from(secrets)
-      .where(and(gt(secrets.startTimeStamp, now), eq(secrets.verified, true)));
+      .where(and(gt(secrets.startTimeStamp, now), eq(secrets.verified, true)))
+      .orderBy(desc(secrets.startTimeStamp));
 
     return { success: true, data: rows.map(toVoteCardData) };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+export async function updatePuzzleData(contractAddress: `0x${string}`) {
+  const solver = await getDataFromContract(contractAddress, "getSolver");
+  const unlockedSecret = await getDataFromContract(
+    contractAddress,
+    "getUnlockedSK"
+  );
+
+  const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
+  const ZERO_BYTES32 =
+    "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+  if (
+    solver.toLowerCase() === ZERO_ADDR.toLowerCase() ||
+    unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()
+  ) {
+    return { success: false, solver, unlockedSecret };
+  }
+
+  await db
+    .update(secrets)
+    .set({ solver, unlockedSecret })
+    .where(eq(secrets.contractAddress, contractAddress));
+
+  return { success: true, solver, unlockedSecret };
 }

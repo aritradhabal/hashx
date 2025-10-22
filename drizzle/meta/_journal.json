@@ -8,6 +8,13 @@
       "when": 1761086453654,
       "tag": "0000_lazy_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761127938385,
+      "tag": "0001_daily_the_twelve",
+      "breakpoints": true
     }
   ]
 }

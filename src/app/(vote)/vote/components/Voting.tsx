@@ -15,7 +15,13 @@ import { FcGoogle } from "react-icons/fc";
 import { RiPerplexityFill } from "react-icons/ri";
 import { FaXTwitter } from "react-icons/fa6";
 import { wagmiContractConfig } from "@/utils/contracts";
-import { useAccount, useReadContract } from "wagmi";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  useAccount,
+  useReadContract,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import {
   Dialog,
   DialogClose,
@@ -35,19 +41,23 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   getActiveVotes,
+  updatePuzzleData,
   getResolvedVotes,
   getUpcomingVotes,
 } from "@/actions/db-actions";
 import type { VoteCardData } from "@/actions/db-actions";
 import { keccak256 } from "viem";
 type TabValue = "Ongoing" | "Resolved" | "Upcoming";
+import { CREATEVOTE_ABI } from "@/constants";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export const Voting = () => {
   const [activeTab, setActiveTab] = React.useState<TabValue>("Ongoing");
   const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
   const [resolved, setResolved] = useState<VoteCardData[]>([]);
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
-
+  const [refetch, setRefetch] = useState<boolean>(false);
   useEffect(() => {
     const fetchContracts = async (activeTab: TabValue) => {
       if (activeTab === "Ongoing") {
@@ -77,7 +87,7 @@ export const Voting = () => {
       }
     };
     fetchContracts(activeTab);
-  }, [activeTab]);
+  }, [activeTab, refetch]);
   const pendingVotes = 10;
   const resolvedVotes = 10;
 
@@ -140,6 +150,19 @@ export const Voting = () => {
                   marketId={vote.marketId}
                   server={vote.server}
                   hashedSK={vote.pp.hashedSK}
+                  contractAddress={vote.contractAddress as string}
+                  solver={
+                    vote.data.solver ??
+                    "0x0000000000000000000000000000000000000000"
+                  }
+                  unlockedSecret={
+                    vote.data.unlockedSecret ??
+                    "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                  setOngoing={setOngoing}
+                  setResolved={setResolved}
+                  setUpcoming={setUpcoming}
+                  setRefetch={setRefetch}
                 />
               ))}
             </div>
@@ -163,6 +186,19 @@ export const Voting = () => {
                   marketId={vote.marketId}
                   server={vote.server}
                   hashedSK={vote.pp.hashedSK}
+                  contractAddress={vote.contractAddress as string}
+                  solver={
+                    vote.data.solver ??
+                    "0x0000000000000000000000000000000000000000"
+                  }
+                  unlockedSecret={
+                    vote.data.unlockedSecret ??
+                    "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                  setOngoing={setOngoing}
+                  setResolved={setResolved}
+                  setUpcoming={setUpcoming}
+                  setRefetch={setRefetch}
                 />
               ))}
             </div>
@@ -186,6 +222,19 @@ export const Voting = () => {
                   marketId={vote.marketId}
                   server={vote.server}
                   hashedSK={vote.pp.hashedSK}
+                  contractAddress={vote.contractAddress as string}
+                  solver={
+                    vote.data.solver ??
+                    "0x0000000000000000000000000000000000000000"
+                  }
+                  unlockedSecret={
+                    vote.data.unlockedSecret ??
+                    "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                  setOngoing={setOngoing}
+                  setResolved={setResolved}
+                  setUpcoming={setUpcoming}
+                  setRefetch={setRefetch}
                 />
               ))}
             </div>
@@ -211,6 +260,13 @@ export const VoteCard = ({
   marketId,
   server,
   hashedSK,
+  contractAddress,
+  solver,
+  unlockedSecret,
+  setOngoing,
+  setResolved,
+  setUpcoming,
+  setRefetch,
 }: {
   optionA: string;
   optionB: string;
@@ -226,6 +282,13 @@ export const VoteCard = ({
   marketId: string;
   server: boolean;
   hashedSK: string;
+  contractAddress: string;
+  solver: string;
+  unlockedSecret: string;
+  setOngoing: (votes: VoteCardData[]) => void;
+  setResolved: (votes: VoteCardData[]) => void;
+  setUpcoming: (votes: VoteCardData[]) => void;
+  setRefetch: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
   return (
     <Item variant="outline" className="w-xs md:w-3xl">
@@ -288,6 +351,13 @@ export const VoteCard = ({
               publicKey={publicKey}
               server={server}
               hashedSK={hashedSK}
+              contractAddress={contractAddress}
+              solver={solver}
+              unlockedSecret={unlockedSecret}
+              setOngoing={setOngoing}
+              setResolved={setResolved}
+              setUpcoming={setUpcoming}
+              setRefetch={setRefetch}
             />
             <Badge
               variant={"noEffect"}
@@ -311,6 +381,13 @@ export const DetailsDialog = ({
   marketId,
   server,
   hashedSK,
+  contractAddress,
+  solver,
+  unlockedSecret,
+  setOngoing,
+  setResolved,
+  setUpcoming,
+  setRefetch: setRefetch,
 }: {
   N: string;
   t: string;
@@ -320,10 +397,60 @@ export const DetailsDialog = ({
   marketId: string;
   server: boolean;
   hashedSK: string;
+  contractAddress: string;
+  solver: string;
+  unlockedSecret: string;
+  setOngoing: (votes: VoteCardData[]) => void;
+  setResolved: (votes: VoteCardData[]) => void;
+  setUpcoming: (votes: VoteCardData[]) => void;
+  setRefetch: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
+  const router = useRouter();
+  const { writeContractAsync } = useWriteContract();
   const [sk_Recovered, setSkRecovered] = useState<`0x${string}`>();
   const [isVerified, setIsVerified] = useState(false);
+  const [txHash, setTxHash] = useState<`0x${string}`>();
+  const [btnClicked, setBtnClicked] = useState(false);
+  const [submitBtnClicked, setSubmitBtnClicked] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
+    query: {
+      enabled: !!txHash,
+    },
+  });
+
+  useEffect(() => {
+    if (!isConfirmed) return;
+    const updateData = async () => {
+      const { success, solver, unlockedSecret } = await updatePuzzleData(
+        contractAddress as `0x${string}`
+      );
+      if (success) {
+        toast.success("Puzzle updated successfully", { duration: 3500 });
+        setDialogOpen(false);
+        setSkRecovered("0x0000000000000000000000000000000000000000");
+        setBtnClicked(false);
+        setSubmitBtnClicked(false);
+        setIsVerified(false);
+        setOngoing([]);
+        setResolved([]);
+        setUpcoming([]);
+        setRefetch((prev) => !prev);
+      } else {
+        toast.error("Failed to update puzzle", { duration: 3500 });
+        setDialogOpen(false);
+        setSkRecovered("0x0000000000000000000000000000000000000000");
+        setBtnClicked(false);
+        setSubmitBtnClicked(false);
+        setIsVerified(false);
+      }
+    };
+    updateData();
+  }, [isConfirmed]);
+
   const verifyPuzzle = () => {
+    setBtnClicked(true);
     if (!sk_Recovered) return;
     const userKeccakhash = keccak256(sk_Recovered);
     if (userKeccakhash === hashedSK) {
@@ -332,8 +459,42 @@ export const DetailsDialog = ({
       setIsVerified(false);
     }
   };
+  const submitPuzzleSolution = async () => {
+    setSubmitBtnClicked(true);
+    const toastId = toast.loading("Submitting puzzle solution...");
+    try {
+      const txHash = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi: CREATEVOTE_ABI,
+        functionName: "verifySecret",
+        args: [sk_Recovered],
+      });
+      setTxHash(txHash);
+      toast.success("Transaction successful", {
+        id: toastId,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            window.open(
+              `https://hashscan.io/testnet/transaction/${txHash}`,
+              "_blank"
+            );
+          },
+        },
+      });
+      if (isConfirmed || isError) {
+        setSubmitBtnClicked(false);
+        setBtnClicked(false);
+        setDialogOpen(false);
+      }
+    } catch (error) {
+      toast.error("Transaction failed. Try again later.", {
+        id: toastId,
+      });
+    }
+  };
   return (
-    <Dialog>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger>
         <Badge className="cursor-pointer" variant={"noEffect"}>
           Details
@@ -403,40 +564,77 @@ export const DetailsDialog = ({
           </InputGroupAddon>
         </InputGroup>
         {server === false ? (
-          <>
-            <InputGroup>
-              <InputGroupInput
-                value={sk_Recovered ?? ""}
-                onChange={(e) => {
-                  setSkRecovered(e.target.value as `0x${string}`);
-                }}
-                id="public-parameters-soln"
-                placeholder="Enter computed puzzle solution"
-                className="resize-none break-all text-xs font-mono !cursor-text"
-              />
-              <InputGroupAddon align="block-start">
-                <Label
-                  htmlFor="public-parameters-soln"
-                  className="text-foreground"
-                >
-                  Secret Key (SK)
-                </Label>
-              </InputGroupAddon>
-            </InputGroup>
-            <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
-              <DialogClose asChild>
-                <Button variant="outline">Close</Button>
-              </DialogClose>
-              <div className="flex justify-center items-center gap-2 flex-wrap">
-                <Button type="button" disabled={!sk_Recovered}>
-                  Verify
-                </Button>
-                <Button type="submit" disabled={!isVerified}>
-                  Submit
-                </Button>
-              </div>
-            </DialogFooter>
-          </>
+          solver === "0x0000000000000000000000000000000000000000" ? (
+            <>
+              <InputGroup>
+                <InputGroupInput
+                  value={sk_Recovered ?? ""}
+                  onChange={(e) => {
+                    setSkRecovered(e.target.value as `0x${string}`);
+                  }}
+                  disabled={isVerified}
+                  id="public-parameters-soln"
+                  placeholder="Enter computed puzzle solution"
+                  className="resize-none break-all text-xs font-mono !cursor-text"
+                />
+                <InputGroupAddon align="block-start">
+                  <Label
+                    htmlFor="public-parameters-soln"
+                    className="text-foreground"
+                  >
+                    Secret Key (SK)
+                  </Label>
+                </InputGroupAddon>
+              </InputGroup>
+              <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
+                <DialogClose asChild>
+                  <Button variant="outline">Close</Button>
+                </DialogClose>
+                <div className="flex justify-center items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    disabled={!sk_Recovered || isVerified}
+                    onClick={verifyPuzzle}
+                  >
+                    {isVerified ? "Verified" : "Verify"}
+                  </Button>
+                  <Button
+                    type="submit"
+                    onClick={submitPuzzleSolution}
+                    disabled={!isVerified || submitBtnClicked}
+                  >
+                    {submitBtnClicked ? (
+                      <>
+                        <Spinner /> Submitting...
+                      </>
+                    ) : (
+                      "Submit"
+                    )}
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <InputGroup>
+                <InputGroupTextarea
+                  readOnly={true}
+                  disabled={true}
+                  value={unlockedSecret}
+                  id="public-parameters-sk"
+                  className="resize-none break-all text-xs font-mono !cursor-text"
+                />
+                <InputGroupAddon align="block-start">
+                  <Label
+                    htmlFor="public-parameters-sk"
+                    className="text-foreground"
+                  >
+                    Secret Key (SK)
+                  </Label>
+                </InputGroupAddon>
+              </InputGroup>
+            </>
+          )
         ) : (
           <>
             <InputGroup>
@@ -463,47 +661,3 @@ export const DetailsDialog = ({
   );
 };
 
-// export const votes = [
-//   {
-//     title: "Who will win the election?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-//   {
-//     title: "Who will win the game?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-//   {
-//     title: "Who will win the movie awards?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-//   {
-//     title: "Who will win the tech awards?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-//   {
-//     title: "Who will win the music awards?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-//   {
-//     title: "Who will win the sports awards?",
-//     description:
-//       "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option",
-//     optionA: "Option A",
-//     optionB: "Option B",
-//   },
-// ];
