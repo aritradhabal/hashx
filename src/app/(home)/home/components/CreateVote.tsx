@@ -79,7 +79,22 @@ export const CreateVote = () => {
   const [verifying, setVerifying] = useState<boolean>(false);
   const [servergen, setServergen] = useState<boolean>(true);
   const [dialogOpen, setDialogppen] = useState<boolean>(false);
-
+  const [args, setArgs] = useState<argsT>({
+    marketId: undefined,
+    optionA: BigInt(1),
+    optionB: BigInt(2),
+    rewards: undefined,
+    startTimestamp: undefined,
+    endTimestamp: undefined,
+    thresholdVotes: 1,
+    hbarLockingContractAddress: HBAR_LOCKING_CONTRACT_ADDRESS,
+    N: undefined,
+    t: undefined,
+    a: 2,
+    skLocked: undefined,
+    hashedSK: undefined,
+    publicKey: undefined,
+  });
   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
@@ -92,10 +107,11 @@ export const CreateVote = () => {
     setVerifying(true);
 
     const verifyTxHash = async () => {
-      const { success } = await verifySecret(txHash as `0x${string}`);
+      const { success, contractAddress } = await verifySecret(
+        txHash as `0x${string}`
+      );
+      setDialogppen(false);
       if (!success) {
-        console.log("failed");
-
         toast.error("Couldn't Verify Contract! Try again...", {
           duration: 3500,
         });
@@ -103,12 +119,18 @@ export const CreateVote = () => {
         setVerifying(false);
         setBtnClicked(false);
       } else {
-        console.log("perfect");
-
-        toast.success("Contract Created Successfully", {
+        toast.success("Contract Created", {
           duration: 3500,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/contract/${contractAddress}`,
+                "_blank"
+              );
+            },
+          },
         });
-        setDialogppen(false);
         setVerifying(false);
         setBtnClicked(false);
       }
@@ -129,23 +151,6 @@ export const CreateVote = () => {
   const maxTokens = Math.floor(
     Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
   );
-
-  const [args, setArgs] = useState<argsT>({
-    marketId: undefined,
-    optionA: BigInt(0),
-    optionB: BigInt(1),
-    rewards: undefined,
-    startTimestamp: undefined,
-    endTimestamp: undefined,
-    thresholdVotes: 1,
-    hbarLockingContractAddress: HBAR_LOCKING_CONTRACT_ADDRESS,
-    N: undefined,
-    t: undefined,
-    a: 2,
-    skLocked: undefined,
-    hashedSK: undefined,
-    publicKey: undefined,
-  });
 
   useEffect(() => {
     if (!args.endTimestamp) return;
@@ -259,7 +264,7 @@ export const CreateVote = () => {
                 onClick={async () => {
                   setBtnClicked(true);
                   const marketId = BigInt(
-                    Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)
+                    (Date.now() << 20) ^ Math.floor(Math.random() * (1 << 20))
                   );
                   const {
                     success: storedInServer,
@@ -379,14 +384,11 @@ export const CreateVote = () => {
 
 export const DateTimePicker = ({
   setArgs,
-
   setTimeError,
   verifying,
 }: {
   verifying: boolean;
-
   setArgs: Dispatch<SetStateAction<argsT>>;
-
   setTimeError: (timeError: boolean) => void;
 }) => {
   function getFormattedTime(date: Date): string {

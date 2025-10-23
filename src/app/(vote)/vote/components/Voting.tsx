@@ -19,6 +19,8 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   useAccount,
   useReadContract,
+  useSignMessage,
+  useSignTypedData,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
@@ -57,10 +59,13 @@ export const Voting = () => {
   const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
   const [resolved, setResolved] = useState<VoteCardData[]>([]);
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
+  const [pendingVotes, setPendingVotes] = useState<number>(0);
+  const [resolvedVotes, setResolvedVotes] = useState<number>(0);
+  const [initialFetch, setInitialFetch] = useState<boolean>(true);
   const [refetch, setRefetch] = useState<boolean>(false);
   useEffect(() => {
     const fetchContracts = async (activeTab: TabValue) => {
-      if (activeTab === "Ongoing") {
+      if (activeTab === "Ongoing" || initialFetch) {
         const { success, data } = await getActiveVotes();
 
         if (success && data) {
@@ -69,27 +74,28 @@ export const Voting = () => {
           }
         }
       }
-      if (activeTab === "Resolved") {
+      if (activeTab === "Resolved" || initialFetch) {
         const { success, data } = await getResolvedVotes();
         if (success && data) {
           if (data.length != resolved.length) {
             setResolved(data);
+            setResolvedVotes(data.length);
           }
         }
       }
-      if (activeTab === "Upcoming") {
+      if (activeTab === "Upcoming" || initialFetch) {
         const { success, data } = await getUpcomingVotes();
         if (success && data) {
           if (data.length != upcoming.length) {
             setUpcoming(data);
+            setPendingVotes(data.length);
           }
         }
       }
+      setInitialFetch(false);
     };
     fetchContracts(activeTab);
-  }, [activeTab, refetch]);
-  const pendingVotes = 10;
-  const resolvedVotes = 10;
+  }, [activeTab, refetch, initialFetch]);
 
   return (
     <>
@@ -107,7 +113,7 @@ export const Voting = () => {
           </ItemContent>
           <ItemActions>
             <Button variant="outline" size="sm">
-              Pending ({pendingVotes})
+              Upcoming ({pendingVotes})
             </Button>
             <Button variant="outline" size="sm">
               Resolved ({resolvedVotes})
@@ -140,6 +146,8 @@ export const Voting = () => {
                   description={vote.description}
                   optionA={vote.optionATitle}
                   optionB={vote.optionBTitle}
+                  optionAValue={vote.tallies.optionA}
+                  optionBValue={vote.tallies.optionB}
                   showBadges={true}
                   N={vote.pp.N}
                   t={vote.pp.t}
@@ -176,6 +184,8 @@ export const Voting = () => {
                   description={vote.description}
                   optionA={vote.optionATitle}
                   optionB={vote.optionBTitle}
+                  optionAValue={vote.tallies.optionA}
+                  optionBValue={vote.tallies.optionB}
                   showBadges={true}
                   N={vote.pp.N}
                   t={vote.pp.t}
@@ -212,6 +222,8 @@ export const Voting = () => {
                   description={vote.description}
                   optionA={vote.optionATitle}
                   optionB={vote.optionBTitle}
+                  optionAValue={vote.tallies.optionA}
+                  optionBValue={vote.tallies.optionB}
                   showBadges={true}
                   N={vote.pp.N}
                   t={vote.pp.t}
@@ -248,6 +260,8 @@ export const Voting = () => {
 export const VoteCard = ({
   optionA,
   optionB,
+  optionAValue,
+  optionBValue,
   title,
   description,
   showBadges,
@@ -270,6 +284,8 @@ export const VoteCard = ({
 }: {
   optionA: string;
   optionB: string;
+  optionAValue: string;
+  optionBValue: string;
   title: string;
   description: string;
   showBadges?: boolean;
@@ -299,12 +315,22 @@ export const VoteCard = ({
         </ItemDescription>
       </ItemContent>
       <ItemActions>
-        <Button variant="outline" size="sm">
-          <p className="tracking-wide">{optionA}</p>
-        </Button>
-        <Button variant="outline" size="sm">
-          <p className="tracking-wide">{optionB}</p>
-        </Button>
+        <VoteActionDialog
+          option={optionA}
+          contractAddress={contractAddress}
+          marketId={marketId}
+          rewards={rewards}
+          optionValue={optionAValue}
+          publicKey={publicKey}
+        />
+        <VoteActionDialog
+          option={optionB}
+          contractAddress={contractAddress}
+          marketId={marketId}
+          rewards={rewards}
+          optionValue={optionBValue}
+          publicKey={publicKey}
+        />
       </ItemActions>
       {showBadges && (
         <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
@@ -661,3 +687,282 @@ export const DetailsDialog = ({
   );
 };
 
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { FaMinus, FaPlus } from "react-icons/fa6";
+import { RainbowkitConfig } from "@/utils/RainbowkitConfig";
+import { useChainId } from "wagmi";
+import { encrypt } from "@/actions/encryptVote";
+
+interface CastVoteArgs {
+  userPublicKey: bigint;
+  option: string | null;
+  amount: bigint;
+}
+export const VoteActionDialog = ({
+  option,
+  contractAddress,
+  marketId,
+  rewards,
+  publicKey,
+  optionValue,
+}: {
+  option: string;
+  contractAddress: string;
+  marketId: string;
+  rewards: string;
+  publicKey: string;
+  optionValue: string;
+}) => {
+  const chainId = useChainId();
+  const { signTypedDataAsync } = useSignTypedData();
+  const { writeContractAsync } = useWriteContract();
+  const [amount, setAmount] = useState<number>(0);
+  const { address } = useAccount();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [isGenerateBtnClicked, setIsGenerateBtnClicked] = useState(false);
+  const [isSubmitBtnClicked, setIsSubmitBtnClicked] = useState(false);
+  const [isAnyBtnClicked, setIsAnyBtnClicked] = useState(false);
+  const [args, setArgs] = useState<CastVoteArgs>({
+    userPublicKey: BigInt(0),
+    option: null,
+    amount: BigInt(0),
+  });
+  const [typedSig, setTypedSig] = useState<`0x${string}` | null>(null);
+  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+  const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
+    query: {
+      enabled: !!txHash,
+    },
+  });
+  useEffect(() => {
+    if (!isConfirmed) return;
+    const updateData = async () => {
+      toast.success("Vote submitted successfully", {
+        duration: 3500,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            window.open(
+              `https://hashscan.io/testnet/transaction/${txHash}`,
+              "_blank"
+            );
+          },
+        },
+      });
+    };
+    updateData();
+  }, [isConfirmed, txHash]);
+
+  const generateVote = async () => {
+    setIsGenerateBtnClicked(true);
+    setIsAnyBtnClicked(true);
+    const sig = await signTypedDataAsync({
+      domain: {
+        name: "HashX",
+        version: "1",
+        chainId,
+        verifyingContract: contractAddress as `0x${string}`,
+      },
+      types: {
+        Vote: [
+          { name: "marketId", type: "uint256" },
+          { name: "option", type: "string" },
+          { name: "amount", type: "uint256" },
+        ],
+      },
+      primaryType: "Vote",
+      message: {
+        marketId: BigInt(marketId),
+        option,
+        amount: BigInt(amount),
+      },
+    });
+    setTypedSig(sig as `0x${string}`);
+    const { encryptedVote, userPublicKey } = await encrypt({
+      typedSig: sig as `0x${string}`,
+      optionValue: optionValue,
+      publicKey: publicKey,
+    });
+    setArgs((prev) => ({
+      ...prev,
+      amount: BigInt(amount * 1e8),
+      option: encryptedVote,
+      userPublicKey: userPublicKey,
+    }));
+    setIsGenerateBtnClicked(false);
+  };
+  const { data: userDeposit } = useReadContract({
+    ...wagmiContractConfig,
+    functionName: "checkUserDeposit",
+    args: [address],
+    query: {
+      enabled: !!address,
+      refetchOnWindowFocus: true,
+      refetchInterval: 3000,
+    },
+  });
+  const maxTokens = Math.floor(
+    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
+  );
+
+  const submitVote = async () => {
+    setIsSubmitBtnClicked(true);
+    const toastId = toast.loading("Submitting vote...");
+
+    try {
+      const txHash = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi: CREATEVOTE_ABI,
+        functionName: "castVote",
+        args: [args.userPublicKey, args.option, args.amount],
+      });
+      setTxHash(txHash);
+      toast.success("Transaction successful", {
+        id: toastId,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            window.open(
+              `https://hashscan.io/testnet/transaction/${txHash}`,
+              "_blank"
+            );
+          },
+        },
+      });
+    } catch (error) {
+      toast.error("Transaction failed. Try again later.", {
+        id: toastId,
+      });
+    } finally {
+      setIsSubmitBtnClicked(false);
+      setDialogOpen(false);
+      setTypedSig(null);
+      setIsAnyBtnClicked(false);
+      setArgs({
+        userPublicKey: BigInt(0),
+        option: null,
+        amount: BigInt(0),
+      });
+    }
+  };
+
+  return (
+    <>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <p className="tracking-wide">{option}</p>
+          </Button>
+        </DialogTrigger>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Submit &#8220;{option}&#8221; Vote</DialogTitle>
+            <DialogDescription>Vote ID: {marketId}</DialogDescription>
+          </DialogHeader>
+
+          <Card className="w-full bg-background rounded-md">
+            <CardHeader>
+              <CardTitle>
+                Total Reward in &#8463;: {Number(BigInt(rewards) / BigInt(1e8))}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Voting Rewards will be distributed in proportion voters balance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Input
+                type="number"
+                placeholder="Amount"
+                disabled={isAnyBtnClicked}
+                value={amount > 0 ? amount : ""}
+                onChange={(e) => {
+                  setAmount(Number(e.target.value));
+                  // setArgs((prev: argsT) => ({
+                  //   ...prev,
+                  //   rewards: BigInt(Number(e.target.value) * 1e8),
+                  // }));
+                }}
+              />
+            </CardContent>
+            <CardFooter className="flex flex-col items-center justify-center gap-y-5">
+              <CardAction className="w-full flex flex-row items-center justify-center gap-x-2">
+                <Button
+                  variant={"outline"}
+                  onClick={() => {
+                    setAmount(amount - 10);
+                    // setArgs((prev: argsT) => ({
+                    //   ...prev,
+                    //   rewards: BigInt(Number(amount - 10) * 1e8),
+                    // }));
+                  }}
+                  disabled={amount - 10 < 0 || isAnyBtnClicked}
+                >
+                  <FaMinus />
+                </Button>
+                <Button
+                  variant={"outline"}
+                  disabled={isAnyBtnClicked}
+                  onClick={() => {
+                    setAmount(maxTokens);
+                    // setArgs((prev: argsT) => ({
+                    //   ...prev,
+                    //   rewards: BigInt(maxTokens * 1e8),
+                    // }));
+                  }}
+                >
+                  Maximum
+                </Button>
+                <Button
+                  variant={"outline"}
+                  onClick={() => {
+                    setAmount(amount + 10);
+                    // setArgs((prev: argsT) => ({
+                    //   ...prev,
+                    //   rewards: BigInt(Number(amount + 10) * 1e8),
+                    // }));
+                  }}
+                  disabled={amount + 10 > maxTokens || isAnyBtnClicked}
+                >
+                  <FaPlus />
+                </Button>
+              </CardAction>
+            </CardFooter>
+          </Card>
+
+          <DialogFooter className="flex flex-row items-center !justify-between gap-x-2">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            {!typedSig ? (
+              <Button
+                onClick={generateVote}
+                disabled={
+                  isGenerateBtnClicked || isSubmitBtnClicked || amount <= 0
+                }
+              >
+                Generate Signature
+              </Button>
+            ) : (
+              <Button
+                onClick={submitVote}
+                disabled={isSubmitBtnClicked || amount <= 0}
+              >
+                Submit Vote
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
