@@ -61,11 +61,9 @@ export const Voting = () => {
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
   const [pendingVotes, setPendingVotes] = useState<number>(0);
   const [resolvedVotes, setResolvedVotes] = useState<number>(0);
-  const [initialFetch, setInitialFetch] = useState<boolean>(true);
-  const [refetch, setRefetch] = useState<boolean>(false);
   useEffect(() => {
     const fetchContracts = async (activeTab: TabValue) => {
-      if (activeTab === "Ongoing" || initialFetch) {
+      if (activeTab === "Ongoing") {
         const { success, data } = await getActiveVotes();
 
         if (success && data) {
@@ -74,7 +72,7 @@ export const Voting = () => {
           }
         }
       }
-      if (activeTab === "Resolved" || initialFetch) {
+      if (activeTab === "Resolved") {
         const { success, data } = await getResolvedVotes();
         if (success && data) {
           if (data.length != resolved.length) {
@@ -83,7 +81,7 @@ export const Voting = () => {
           }
         }
       }
-      if (activeTab === "Upcoming" || initialFetch) {
+      if (activeTab === "Upcoming") {
         const { success, data } = await getUpcomingVotes();
         if (success && data) {
           if (data.length != upcoming.length) {
@@ -92,10 +90,9 @@ export const Voting = () => {
           }
         }
       }
-      setInitialFetch(false);
     };
     fetchContracts(activeTab);
-  }, [activeTab, refetch, initialFetch]);
+  }, [activeTab]);
 
   return (
     <>
@@ -170,7 +167,8 @@ export const Voting = () => {
                   setOngoing={setOngoing}
                   setResolved={setResolved}
                   setUpcoming={setUpcoming}
-                  setRefetch={setRefetch}
+                  activeTab={activeTab}
+                  timeleft={Number(vote.endTimestamp) - Date.now() / 1000}
                 />
               ))}
             </div>
@@ -208,7 +206,7 @@ export const Voting = () => {
                   setOngoing={setOngoing}
                   setResolved={setResolved}
                   setUpcoming={setUpcoming}
-                  setRefetch={setRefetch}
+                  activeTab={activeTab}
                 />
               ))}
             </div>
@@ -246,7 +244,7 @@ export const Voting = () => {
                   setOngoing={setOngoing}
                   setResolved={setResolved}
                   setUpcoming={setUpcoming}
-                  setRefetch={setRefetch}
+                  activeTab={activeTab}
                 />
               ))}
             </div>
@@ -280,7 +278,8 @@ export const VoteCard = ({
   setOngoing,
   setResolved,
   setUpcoming,
-  setRefetch,
+  activeTab,
+  timeleft,
 }: {
   optionA: string;
   optionB: string;
@@ -304,8 +303,21 @@ export const VoteCard = ({
   setOngoing: (votes: VoteCardData[]) => void;
   setResolved: (votes: VoteCardData[]) => void;
   setUpcoming: (votes: VoteCardData[]) => void;
-  setRefetch: React.Dispatch<React.SetStateAction<boolean>>;
+  activeTab: TabValue;
+  timeleft?: number;
 }) => {
+  const formatTimeLeft = (totalSeconds: number) => {
+    const t = Math.max(0, Math.floor(totalSeconds));
+    const days = Math.floor(t / 86400);
+    const hours = Math.floor((t % 86400) / 3600);
+    const minutes = Math.floor((t % 3600) / 60);
+
+    const parts: string[] = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    return parts.join(" ");
+  };
   return (
     <Item variant="outline" className="w-xs md:w-3xl">
       <ItemContent>
@@ -315,22 +327,36 @@ export const VoteCard = ({
         </ItemDescription>
       </ItemContent>
       <ItemActions>
-        <VoteActionDialog
-          option={optionA}
-          contractAddress={contractAddress}
-          marketId={marketId}
-          rewards={rewards}
-          optionValue={optionAValue}
-          publicKey={publicKey}
-        />
-        <VoteActionDialog
-          option={optionB}
-          contractAddress={contractAddress}
-          marketId={marketId}
-          rewards={rewards}
-          optionValue={optionBValue}
-          publicKey={publicKey}
-        />
+        {activeTab === "Ongoing" && (
+          <>
+            <VoteActionDialog
+              option={optionA}
+              contractAddress={contractAddress}
+              marketId={marketId}
+              rewards={rewards}
+              optionValue={optionAValue}
+              publicKey={publicKey}
+            />
+            <VoteActionDialog
+              option={optionB}
+              contractAddress={contractAddress}
+              marketId={marketId}
+              rewards={rewards}
+              optionValue={optionBValue}
+              publicKey={publicKey}
+            />
+          </>
+        )}
+        {activeTab === "Resolved" && (
+          <Button variant="outline" size="sm">
+            Claim Rewards
+          </Button>
+        )}
+        {activeTab === "Upcoming" && (
+          <Button variant="outline" size="sm">
+            View
+          </Button>
+        )}
       </ItemActions>
       {showBadges && (
         <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
@@ -367,7 +393,7 @@ export const VoteCard = ({
               </a>
             </Badge>
           </div>
-          <div className="flex flex-row gap-x-1 items-center justify-center flex-wrap">
+          <div className="flex flex-row gap-x-3 items-center justify-center flex-wrap">
             <DetailsDialog
               marketId={marketId}
               N={N}
@@ -383,11 +409,16 @@ export const VoteCard = ({
               setOngoing={setOngoing}
               setResolved={setResolved}
               setUpcoming={setUpcoming}
-              setRefetch={setRefetch}
             />
+
+            {activeTab === "Ongoing" && (
+              <Badge variant={"noEffect"}>
+                {timeleft ? formatTimeLeft(timeleft) : "0m 0s"} Left
+              </Badge>
+            )}
             <Badge
               variant={"noEffect"}
-              className="bg-background text-card-foreground border-background"
+              className="bg-background text-card-foreground border-background !pl-0"
             >
               Reward: {Math.floor(Number(rewards) / 1e8)} &#8463;
             </Badge>
@@ -413,7 +444,6 @@ export const DetailsDialog = ({
   setOngoing,
   setResolved,
   setUpcoming,
-  setRefetch: setRefetch,
 }: {
   N: string;
   t: string;
@@ -429,7 +459,6 @@ export const DetailsDialog = ({
   setOngoing: (votes: VoteCardData[]) => void;
   setResolved: (votes: VoteCardData[]) => void;
   setUpcoming: (votes: VoteCardData[]) => void;
-  setRefetch: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
   const router = useRouter();
   const { writeContractAsync } = useWriteContract();
@@ -462,7 +491,6 @@ export const DetailsDialog = ({
         setOngoing([]);
         setResolved([]);
         setUpcoming([]);
-        setRefetch((prev) => !prev);
       } else {
         toast.error("Failed to update puzzle", { duration: 3500 });
         setDialogOpen(false);
@@ -755,6 +783,7 @@ export const VoteActionDialog = ({
     useTokenBalanceStore();
   useEffect(() => {
     const updateData = async () => {
+      if (isConfirmed === false && isError === false) return;
       if (isError) {
         toast.error("Transaction failed", {
           duration: 3500,
@@ -811,6 +840,7 @@ export const VoteActionDialog = ({
         toast.dismiss(toastId);
         toast.dismiss(toastId2);
       }
+      console.log("redndered");
       fetchNativeBalance();
       fetchTokenBalance();
     };

@@ -29,3 +29,19 @@ export const secrets = pgTable("secrets", {
   unlockedSecret: varchar("unlocked_secret", { length: 80 }),
   resolvedOption: bigint("resolved_option", { mode: "bigint" }),
 });
+
+export const users = pgTable("users", {
+  address: varchar("user_address", { length: 80 }).notNull().primaryKey(),
+  publicKey: varchar("public_key", { length: 80 }).notNull(),
+  option: bigint("option", { mode: "bigint" }),
+});
+
+export const userMarkets = pgTable("user_markets", {
+  id: serial("id").primaryKey(),
+  userAddress: varchar("user_address", { length: 80 })
+    .notNull()
+    .references(() => users.address, { onDelete: "cascade" }),
+  marketId: bigint("market_id", { mode: "bigint" }).notNull(),
+  voted: boolean("voted").notNull().default(false),
+  option: bigint("option", { mode: "bigint" }).notNull(),
+});
