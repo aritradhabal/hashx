@@ -325,7 +325,7 @@ export async function getActiveVotes() {
           eq(secrets.verified, true)
         )
       )
-      .orderBy(desc(secrets.endTimestamp));
+      .orderBy(desc(secrets.startTimeStamp));
 
     return { success: true, data: rows.map(toVoteCardData) };
   } catch (error: any) {
@@ -393,7 +393,7 @@ export async function getUpcomingVotes() {
       })
       .from(secrets)
       .where(and(gt(secrets.startTimeStamp, now), eq(secrets.verified, true)))
-      .orderBy(desc(secrets.startTimeStamp));
+      .orderBy(asc(secrets.startTimeStamp));
 
     return { success: true, data: rows.map(toVoteCardData) };
   } catch (error: any) {

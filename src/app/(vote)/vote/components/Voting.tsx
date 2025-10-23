@@ -498,6 +498,7 @@ export const DetailsDialog = ({
       setTxHash(txHash);
       toast.success("Transaction successful", {
         id: toastId,
+        duration: 3500,
         action: {
           label: "View on Explorer",
           onClick: () => {
@@ -701,6 +702,9 @@ import { FaMinus, FaPlus } from "react-icons/fa6";
 import { RainbowkitConfig } from "@/utils/RainbowkitConfig";
 import { useChainId } from "wagmi";
 import { encrypt } from "@/actions/encryptVote";
+import { verifyVoteSignature } from "@/app/actions/verification";
+import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
+import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
 
 interface CastVoteArgs {
   userPublicKey: bigint;
@@ -731,6 +735,8 @@ export const VoteActionDialog = ({
   const [isGenerateBtnClicked, setIsGenerateBtnClicked] = useState(false);
   const [isSubmitBtnClicked, setIsSubmitBtnClicked] = useState(false);
   const [isAnyBtnClicked, setIsAnyBtnClicked] = useState(false);
+  const [toastId, setToastId] = useState<string | number>();
+  const [toastId2, setToastId2] = useState<string | number>();
   const [args, setArgs] = useState<CastVoteArgs>({
     userPublicKey: BigInt(0),
     option: null,
@@ -744,24 +750,72 @@ export const VoteActionDialog = ({
       enabled: !!txHash,
     },
   });
+  const { fetchBalance: fetchNativeBalance } = useNativeBalanceStore();
+  const { balance: stakedTokenBalance, fetchBalance: fetchTokenBalance } =
+    useTokenBalanceStore();
   useEffect(() => {
-    if (!isConfirmed) return;
     const updateData = async () => {
-      toast.success("Vote submitted successfully", {
-        duration: 3500,
-        action: {
-          label: "View on Explorer",
-          onClick: () => {
-            window.open(
-              `https://hashscan.io/testnet/transaction/${txHash}`,
-              "_blank"
-            );
+      if (isError) {
+        toast.error("Transaction failed", {
+          duration: 3500,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/transaction/${txHash}`,
+                "_blank"
+              );
+            },
           },
-        },
-      });
+        });
+        setDialogOpen(false);
+        setIsGenerateBtnClicked(false);
+        setIsSubmitBtnClicked(false);
+        setIsAnyBtnClicked(false);
+        setAmount(0);
+        setArgs({
+          userPublicKey: BigInt(0),
+          option: null,
+          amount: BigInt(0),
+        });
+        setTypedSig(null);
+        setTxHash(null);
+        toast.dismiss(toastId);
+        toast.dismiss(toastId2);
+      }
+      if (isConfirmed) {
+        toast.success("Transaction Successful", {
+          duration: 3500,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/transaction/${txHash}`,
+                "_blank"
+              );
+            },
+          },
+        });
+        setDialogOpen(false);
+        setIsGenerateBtnClicked(false);
+        setIsSubmitBtnClicked(false);
+        setIsAnyBtnClicked(false);
+        setAmount(0);
+        setArgs({
+          userPublicKey: BigInt(0),
+          option: null,
+          amount: BigInt(0),
+        });
+        setTypedSig(null);
+        setTxHash(null);
+        toast.dismiss(toastId);
+        toast.dismiss(toastId2);
+      }
+      fetchNativeBalance();
+      fetchTokenBalance();
     };
     updateData();
-  }, [isConfirmed, txHash]);
+  }, [isConfirmed, txHash, isError]);
 
   const generateVote = async () => {
     setIsGenerateBtnClicked(true);
@@ -787,9 +841,25 @@ export const VoteActionDialog = ({
         amount: BigInt(amount),
       },
     });
+    const ok = await verifyVoteSignature({
+      signature: sig as `0x${string}`,
+      expectedSigner: address as `0x${string}`,
+      contractAddress: contractAddress as `0x${string}`,
+      chainId,
+      marketId: BigInt(marketId),
+      option,
+      amount: BigInt(amount),
+    });
+
+    if (!ok) {
+      setIsGenerateBtnClicked(false);
+      toast.error("Signature verification failed");
+      return;
+    }
+    toast.success("Signature verified");
     setTypedSig(sig as `0x${string}`);
     const { encryptedVote, userPublicKey } = await encrypt({
-      typedSig: sig as `0x${string}`,
+      sig: sig as `0x${string}`,
       optionValue: optionValue,
       publicKey: publicKey,
     });
@@ -801,23 +871,13 @@ export const VoteActionDialog = ({
     }));
     setIsGenerateBtnClicked(false);
   };
-  const { data: userDeposit } = useReadContract({
-    ...wagmiContractConfig,
-    functionName: "checkUserDeposit",
-    args: [address],
-    query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
-      refetchInterval: 3000,
-    },
-  });
-  const maxTokens = Math.floor(
-    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
-  );
+
+  const maxTokens = Number(stakedTokenBalance);
 
   const submitVote = async () => {
     setIsSubmitBtnClicked(true);
-    const toastId = toast.loading("Submitting vote...");
+    const toastId = toast.loading("Submitting vote...", { duration: 3500 });
+    setToastId(toastId);
 
     try {
       const txHash = await writeContractAsync({
@@ -827,8 +887,8 @@ export const VoteActionDialog = ({
         args: [args.userPublicKey, args.option, args.amount],
       });
       setTxHash(txHash);
-      toast.success("Transaction successful", {
-        id: toastId,
+      const toastId2 = toast.loading("Transaction confirming...", {
+        duration: 10000,
         action: {
           label: "View on Explorer",
           onClick: () => {
@@ -839,6 +899,7 @@ export const VoteActionDialog = ({
           },
         },
       });
+      setToastId2(toastId2);
     } catch (error) {
       toast.error("Transaction failed. Try again later.", {
         id: toastId,
@@ -887,10 +948,6 @@ export const VoteActionDialog = ({
                 value={amount > 0 ? amount : ""}
                 onChange={(e) => {
                   setAmount(Number(e.target.value));
-                  // setArgs((prev: argsT) => ({
-                  //   ...prev,
-                  //   rewards: BigInt(Number(e.target.value) * 1e8),
-                  // }));
                 }}
               />
             </CardContent>
@@ -900,10 +957,6 @@ export const VoteActionDialog = ({
                   variant={"outline"}
                   onClick={() => {
                     setAmount(amount - 10);
-                    // setArgs((prev: argsT) => ({
-                    //   ...prev,
-                    //   rewards: BigInt(Number(amount - 10) * 1e8),
-                    // }));
                   }}
                   disabled={amount - 10 < 0 || isAnyBtnClicked}
                 >
@@ -914,10 +967,6 @@ export const VoteActionDialog = ({
                   disabled={isAnyBtnClicked}
                   onClick={() => {
                     setAmount(maxTokens);
-                    // setArgs((prev: argsT) => ({
-                    //   ...prev,
-                    //   rewards: BigInt(maxTokens * 1e8),
-                    // }));
                   }}
                 >
                   Maximum
@@ -926,10 +975,6 @@ export const VoteActionDialog = ({
                   variant={"outline"}
                   onClick={() => {
                     setAmount(amount + 10);
-                    // setArgs((prev: argsT) => ({
-                    //   ...prev,
-                    //   rewards: BigInt(Number(amount + 10) * 1e8),
-                    // }));
                   }}
                   disabled={amount + 10 > maxTokens || isAnyBtnClicked}
                 >
@@ -949,15 +994,31 @@ export const VoteActionDialog = ({
                 disabled={
                   isGenerateBtnClicked || isSubmitBtnClicked || amount <= 0
                 }
+                className="transition-all duration-300"
               >
-                Generate Signature
+                {isGenerateBtnClicked ? (
+                  <>
+                    <Spinner />
+                    Generating...
+                  </>
+                ) : (
+                  "Generate Signature"
+                )}
               </Button>
             ) : (
               <Button
                 onClick={submitVote}
                 disabled={isSubmitBtnClicked || amount <= 0}
+                className="transition-all duration-300"
               >
-                Submit Vote
+                {isSubmitBtnClicked ? (
+                  <>
+                    <Spinner />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Vote"
+                )}
               </Button>
             )}
           </DialogFooter>

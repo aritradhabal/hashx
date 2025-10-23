@@ -7,16 +7,21 @@ import { useNativeBalanceStore } from "./useNativeBalanceStore";
 
 const fetchStakedTokenBalance = async (address: Address) => {
   if (!address) return "0.00";
-  const rawStakedTokenBalance = await readContract(config as any, {
-    abi: wagmiContractConfig.abi,
-    address: wagmiContractConfig.address,
-    functionName: "checkUserDeposit",
-    args: [address],
-  });
-  const userStakedTokenBalance = Math.floor(
-    Number(rawStakedTokenBalance as bigint) / 1e8
-  );
-  return userStakedTokenBalance.toString();
+  let userStakedTokenBalance = "0.00";
+  try {
+    const rawStakedTokenBalance = await readContract(config as any, {
+      abi: wagmiContractConfig.abi,
+      address: wagmiContractConfig.address,
+      functionName: "checkUserDeposit",
+      args: [address],
+    });
+    userStakedTokenBalance = Math.floor(
+      Number(rawStakedTokenBalance as bigint) / 1e8
+    ).toString();
+  } catch (error) {
+    console.error("Failed to fetch balance:", error);
+  }
+  return userStakedTokenBalance;
 };
 interface TokenBalanceStore {
   address: Address;

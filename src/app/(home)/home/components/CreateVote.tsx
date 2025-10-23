@@ -53,6 +53,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { calculateTforTimestamp } from "@/actions/getTime";
 import { generateKeyPair } from "@/actions/keygen";
 import { verifySecret } from "@/actions/db-actions";
+import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
+import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
 export interface argsT {
   marketId: bigint | undefined;
   optionA: bigint | undefined;
@@ -69,8 +71,23 @@ export interface argsT {
   hashedSK: `0x${string}` | undefined;
   publicKey: `0x${string}` | undefined;
 }
+const defaultArgs: argsT = {
+  marketId: undefined,
+  optionA: BigInt(1),
+  optionB: BigInt(2),
+  rewards: undefined,
+  startTimestamp: undefined,
+  endTimestamp: undefined,
+  thresholdVotes: 1,
+  hbarLockingContractAddress: HBAR_LOCKING_CONTRACT_ADDRESS,
+  N: undefined,
+  t: undefined,
+  a: 2,
+  skLocked: undefined,
+  hashedSK: undefined,
+  publicKey: undefined,
+};
 export const CreateVote = () => {
-  const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState(0);
   const [BtnClicked, setBtnClicked] = useState(false);
@@ -79,78 +96,78 @@ export const CreateVote = () => {
   const [verifying, setVerifying] = useState<boolean>(false);
   const [servergen, setServergen] = useState<boolean>(true);
   const [dialogOpen, setDialogppen] = useState<boolean>(false);
-  const [args, setArgs] = useState<argsT>({
-    marketId: undefined,
-    optionA: BigInt(1),
-    optionB: BigInt(2),
-    rewards: undefined,
-    startTimestamp: undefined,
-    endTimestamp: undefined,
-    thresholdVotes: 1,
-    hbarLockingContractAddress: HBAR_LOCKING_CONTRACT_ADDRESS,
-    N: undefined,
-    t: undefined,
-    a: 2,
-    skLocked: undefined,
-    hashedSK: undefined,
-    publicKey: undefined,
-  });
+  const [toast1, setToast1] = useState<string | number>();
+  const [toast2, setToast2] = useState<string | number>();
+  const [args, setArgs] = useState<argsT>(defaultArgs);
   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
       enabled: !!txHash,
     },
   });
+  const { fetchBalance: fetchNativeBalance } = useNativeBalanceStore();
+  const { balance: stakedTokenBalance, fetchBalance: fetchTokenBalance } =
+    useTokenBalanceStore();
 
   useEffect(() => {
-    if (!isConfirmed) return;
-    setVerifying(true);
-
+    if (isError === false && isConfirmed === false) return;
     const verifyTxHash = async () => {
-      const { success, contractAddress } = await verifySecret(
-        txHash as `0x${string}`
-      );
-      setDialogppen(false);
-      if (!success) {
-        toast.error("Couldn't Verify Contract! Try again...", {
-          duration: 3500,
+      setVerifying(true);
+      if (isConfirmed) {
+        toast.loading("Verifying transaction...", {
+          id: toast2,
+          duration: 10000,
         });
+        const { success, contractAddress } = await verifySecret(
+          txHash as `0x${string}`
+        );
+        if (!success) {
+          toast.error("Couldn't create Contract! Try again...", {
+            id: toast1,
+            duration: 3500,
+          });
+        } else {
+          toast.success("Contract Created", {
+            id: toast1,
+            duration: 3500,
+            action: {
+              label: "View on Explorer",
+              onClick: () => {
+                window.open(
+                  `https://hashscan.io/testnet/contract/${contractAddress}`,
+                  "_blank"
+                );
+              },
+            },
+          });
+        }
+        toast.dismiss(toast2);
         setDialogppen(false);
         setVerifying(false);
         setBtnClicked(false);
-      } else {
-        toast.success("Contract Created", {
+        setTxHash(undefined);
+        setArgs(defaultArgs);
+      }
+      if (isError) {
+        toast.error("Transaction failed. Try again later.", {
+          id: toast1,
           duration: 3500,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/contract/${contractAddress}`,
-                "_blank"
-              );
-            },
-          },
         });
+        toast.dismiss(toast2);
+        setDialogppen(false);
         setVerifying(false);
         setBtnClicked(false);
+        setTxHash(undefined);
+        setArgs(defaultArgs);
       }
+
+      fetchNativeBalance();
+      fetchTokenBalance();
     };
     verifyTxHash();
-  }, [txHash, isConfirmed]);
+  }, [isConfirmed, isError]);
 
-  const { data: userDeposit } = useReadContract({
-    ...wagmiContractConfig,
-    functionName: "checkUserDeposit",
-    args: [address],
-    query: {
-      enabled: !!address,
-      refetchOnWindowFocus: true,
-      refetchInterval: 3000,
-    },
-  });
-  const maxTokens = Math.floor(
-    Number(userDeposit ? (userDeposit as bigint) : BigInt(0)) / 1e8
-  );
+  const maxTokens = Number(stakedTokenBalance);
 
   useEffect(() => {
     if (!args.endTimestamp) return;
@@ -263,9 +280,14 @@ export const CreateVote = () => {
                 }
                 onClick={async () => {
                   setBtnClicked(true);
+                  const t1 = toast.loading("Transaction in progress...", {
+                    duration: 10000,
+                  });
+                  setToast1(t1);
                   const marketId = BigInt(
                     (Date.now() << 20) ^ Math.floor(Math.random() * (1 << 20))
                   );
+                  console.log(marketId.toString());
                   const {
                     success: storedInServer,
                     publicKey,
@@ -306,8 +328,8 @@ export const CreateVote = () => {
                     publicKey,
                   };
 
-                  const toastId = toast.loading("Transaction in progress...");
                   try {
+                    console.log("trying");
                     const txHash = await writeContractAsync({
                       address: CreateVoteFactoryContractConfig.address,
                       abi: CreateVoteFactoryContractConfig.abi,
@@ -330,8 +352,8 @@ export const CreateVote = () => {
                       ],
                     });
                     setTxHash(txHash);
-                    toast.success("Transaction successful", {
-                      id: toastId,
+                    const t2 = toast.loading("Transaction confirming...", {
+                      duration: 10000,
                       action: {
                         label: "View on Explorer",
                         onClick: () => {
@@ -342,14 +364,16 @@ export const CreateVote = () => {
                         },
                       },
                     });
+                    setToast2(t2);
                     if (isConfirmed || isError) {
                       setBtnClicked(false);
                     }
                   } catch (error) {
+                    console.log("error");
                     toast.error("Transaction failed. Try again later.", {
-                      id: toastId,
+                      id: toast1,
                     });
-
+                    toast.dismiss(toast2);
                     setBtnClicked(false);
                   }
                 }}
@@ -429,12 +453,16 @@ export const DateTimePicker = ({
 
   const currentTimeUnix = Math.floor(Date.now() / 1000);
   useEffect(() => {
-    if (startTimeInUnix < currentTimeUnix) {
+    if (
+      startTimeInUnix < currentTimeUnix ||
+      endTimeInUnix < currentTimeUnix ||
+      endTimeInUnix < startTimeInUnix
+    ) {
       setTimeError(true);
     } else {
       setTimeError(false);
     }
-  }, [startTimeInUnix, currentTimeUnix]);
+  }, [startTimeInUnix, currentTimeUnix, endTimeInUnix]);
 
   return (
     <>

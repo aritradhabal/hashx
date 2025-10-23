@@ -4,11 +4,17 @@ import { config } from "@/utils/WagmiConfig";
 import { Address, formatEther } from "viem";
 
 const fetchNativeBalance = async (address: Address) => {
-  const data = await getBalance(config as any, {
-    //@ts-ignore
-    address: address,
-  });
-  const formattedBalance = parseFloat(formatEther(data.value)).toFixed(2);
+  let formattedBalance = "0.00";
+  try {
+    const data = await getBalance(config as any, {
+      //@ts-ignore
+      address: address,
+    });
+    formattedBalance = parseFloat(formatEther(data.value)).toFixed(2);
+  } catch (error) {
+    console.error("Failed to fetch balance:", error);
+  }
+
   return formattedBalance;
 };
 

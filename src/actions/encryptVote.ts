@@ -1,17 +1,12 @@
 "use client";
-import {
-  packPoint,
-  unpackPoint,
-  mulPointEscalar,
-  Point,
-} from "@zk-kit/baby-jubjub";
+import { packPoint, unpackPoint, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import crypto from "crypto";
 export const encrypt = async ({
-  typedSig,
+  sig,
   optionValue,
   publicKey,
 }: {
-  typedSig: `0x${string}`;
+  sig: `0x${string}`;
   optionValue: string;
   publicKey: string;
 }): Promise<{ encryptedVote: string; userPublicKey: bigint }> => {
@@ -23,7 +18,7 @@ export const encrypt = async ({
   // Combine typedSig and randomness
   const randomBytes = crypto.randomBytes(32);
   const mixInput = Buffer.concat([
-    Buffer.from(typedSig.slice(2), "hex"),
+    Buffer.from(sig.slice(2), "hex"),
     randomBytes,
   ]);
 

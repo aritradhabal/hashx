@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import delay from "@/utils/delay";
 import { IsAccountConnectedContext } from "@/Providers/Providers/AccountConnectionProvider";
 import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
+import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
 const ConnectWallet = () => {
   const { openConnectModal } = useConnectModal();
   const { address } = useAccount();
@@ -72,12 +73,13 @@ const ConnectWallet = () => {
     isLoading: isBalanceLoading,
     fetchBalance,
   } = useNativeBalanceStore();
-
+  const { fetchBalance: fetchTokenBalance } = useTokenBalanceStore();
   const initilizeNativeBalance = useEffectEvent(
     (address: `0x${string}` | undefined) => {
       if (address) {
         setAddress(address);
         fetchBalance();
+        fetchTokenBalance();
       }
     }
   );

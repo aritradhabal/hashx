@@ -45,6 +45,11 @@ export const Staking = () => {
       enabled: !!transactionHash,
     },
   });
+  const [stakingToastId, setStakingToastId] = useState<string | number>();
+  const [stakingToastId2, setStakingToastId2] = useState<string | number>();
+  const [unstakingToastId, setUnstakingToastId] = useState<string | number>();
+  const [unstakingToastId2, setUnstakingToastId2] = useState<string | number>();
+
   const { balance: nativeBalance, fetchBalance: fetchNativeBalance } =
     useNativeBalanceStore();
   const {
@@ -59,6 +64,22 @@ export const Staking = () => {
 
   useEffect(() => {
     if (isSuccess) {
+      toast.success("Transaction completed", {
+        duration: 3500,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            window.open(
+              `https://hashscan.io/testnet/transaction/${transactionHash}`,
+              "_blank"
+            );
+          },
+        },
+      });
+      toast.dismiss(stakingToastId);
+      toast.dismiss(stakingToastId2);
+      toast.dismiss(unstakingToastId);
+      toast.dismiss(unstakingToastId2);
       fetchNativeBalance();
       fetchTokenBalance();
     }
@@ -155,10 +176,11 @@ export const Staking = () => {
                     }
                     onClick={async () => {
                       setBtnClicked(true);
-                      const toastId = toast.loading(
-                        "Transaction in progress..."
+                      const staking1 = toast.loading(
+                        "Transaction in progress...",
+                        { duration: 3500 }
                       );
-
+                      setStakingToastId(staking1);
                       try {
                         const txHash = await writeContractAsync({
                           address: wagmiContractConfig.address,
@@ -167,26 +189,30 @@ export const Staking = () => {
                           value: BigInt(parseEther(amount.toString())),
                         });
                         setTransactionHash(txHash);
-                        toast.success("Transaction successful", {
-                          id: toastId,
-                          action: {
-                            label: "View on Explorer",
-                            onClick: () => {
-                              window.open(
-                                `https://hashscan.io/testnet/transaction/${txHash}`,
-                                "_blank"
-                              );
+                        const staking2 = toast.loading(
+                          "Transaction confirming...",
+                          {
+                            duration: 10000,
+                            action: {
+                              label: "View on Explorer",
+                              onClick: () => {
+                                window.open(
+                                  `https://hashscan.io/testnet/transaction/${txHash}`,
+                                  "_blank"
+                                );
+                              },
                             },
-                          },
-                        });
-
-                        setBtnClicked(false);
+                          }
+                        );
+                        setStakingToastId2(staking2);
                       } catch (error) {
                         toast.error("Transaction failed. Try again later.", {
-                          id: toastId,
+                          id: staking1,
                         });
-
+                        toast.dismiss(stakingToastId2);
+                      } finally {
                         setBtnClicked(false);
+                        setAmount(0);
                       }
                     }}
                   >
@@ -272,9 +298,11 @@ export const Staking = () => {
                     }
                     onClick={async () => {
                       setBtnClicked(true);
-                      const toastId = toast.loading(
-                        "Transaction in progress..."
+                      const unstaking1 = toast.loading(
+                        "Transaction in progress...",
+                        { duration: 3500 }
                       );
+                      setUnstakingToastId(unstaking1);
                       try {
                         const txHash = await writeContractAsync({
                           address: wagmiContractConfig.address,
@@ -283,24 +311,30 @@ export const Staking = () => {
                           args: [BigInt(Number(amount) * 1e8)],
                         });
                         setTransactionHash(txHash);
-                        toast.success("Transaction successful", {
-                          id: toastId,
-                          action: {
-                            label: "View on Explorer",
-                            onClick: () => {
-                              window.open(
-                                `https://hashscan.io/testnet/transaction/${txHash}`,
-                                "_blank"
-                              );
+                        const unstaking2 = toast.loading(
+                          "Transaction confirming...",
+                          {
+                            duration: 10000,
+                            action: {
+                              label: "View on Explorer",
+                              onClick: () => {
+                                window.open(
+                                  `https://hashscan.io/testnet/transaction/${txHash}`,
+                                  "_blank"
+                                );
+                              },
                             },
-                          },
-                        });
-                        setBtnClicked(false);
+                          }
+                        );
+                        setUnstakingToastId2(unstaking2);
                       } catch (error) {
                         toast.error("Transaction failed. Try again later.", {
-                          id: toastId,
+                          id: unstaking1,
                         });
+                        toast.dismiss(unstakingToastId2);
+                      } finally {
                         setBtnClicked(false);
+                        setAmount(0);
                       }
                     }}
                   >
