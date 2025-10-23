@@ -5,8 +5,9 @@ import CreateVoteContractABI from "../ABI/CreateVote.json"
 export const HBAR_LOCKING_CONTRACT_ADDRESS =
   "0xde368C3DCac4E5096f2D2b8AF7Be70277c43b144";
 export const CREATEVOTE_FACTORY_ADDRESS =
-  "0xfdCc98789Ed1729d713c865878b104ee81e960f3";
+  "0xeC68fF51076783F1f439604d9732C3Ae408899EC";
 
 export const HBAR_LOCKING_CONTRACT_ABI = HBARLockingContractABI.abi;
 export const CREATEVOTE_FACTORY_ABI = FactoryContractABI.abi;
 export const CREATEVOTE_ABI = CreateVoteContractABI.abi;
+

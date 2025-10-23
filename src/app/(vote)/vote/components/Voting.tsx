@@ -14,7 +14,10 @@ import React, { useEffect, useState } from "react";
 import { FcGoogle } from "react-icons/fc";
 import { RiPerplexityFill } from "react-icons/ri";
 import { FaXTwitter } from "react-icons/fa6";
-import { wagmiContractConfig } from "@/utils/contracts";
+import {
+  CreateVoteContractConfig,
+  wagmiContractConfig,
+} from "@/utils/contracts";
 import { Spinner } from "@/components/ui/spinner";
 import {
   useAccount,
@@ -62,38 +65,50 @@ export const Voting = () => {
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
   const [pendingVotes, setPendingVotes] = useState<number>(0);
   const [resolvedVotes, setResolvedVotes] = useState<number>(0);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isUserVoted, setIsUserVoted] = useState(false);
 
   useEffect(() => {
-    const fetchContracts = async (activeTab: TabValue) => {
-      if (activeTab === "Ongoing") {
-        const { success, data } = await getActiveVotes();
+    let cancelled = false;
 
-        if (success && data) {
-          if (data.length != ongoing.length) {
-            setOngoing(data);
+    const fetchContracts = async (activeTab: TabValue) => {
+      setIsFetching(true);
+      try {
+        if (activeTab === "Ongoing") {
+          const { success, data } = await getActiveVotes();
+          if (!cancelled && success && data) {
+            if (data.length != ongoing.length) {
+              setOngoing(data);
+            }
           }
         }
-      }
-      if (activeTab === "Resolved") {
-        const { success, data } = await getResolvedVotes();
-        if (success && data) {
-          if (data.length != resolved.length) {
-            setResolved(data);
-            setResolvedVotes(data.length);
+        if (activeTab === "Resolved") {
+          const { success, data } = await getResolvedVotes();
+          if (!cancelled && success && data) {
+            if (data.length != resolved.length) {
+              setResolved(data);
+              setResolvedVotes(data.length);
+            }
           }
         }
-      }
-      if (activeTab === "Upcoming") {
-        const { success, data } = await getUpcomingVotes();
-        if (success && data) {
-          if (data.length != upcoming.length) {
-            setUpcoming(data);
-            setPendingVotes(data.length);
+        if (activeTab === "Upcoming") {
+          const { success, data } = await getUpcomingVotes();
+          if (!cancelled && success && data) {
+            if (data.length != upcoming.length) {
+              setUpcoming(data);
+              setPendingVotes(data.length);
+            }
           }
         }
+      } finally {
+        if (!cancelled) setIsFetching(false);
       }
     };
+
     fetchContracts(activeTab);
+    return () => {
+      cancelled = true;
+    };
   }, [activeTab]);
 
   return (
@@ -138,6 +153,11 @@ export const Voting = () => {
           </TabsList>
           <TabsContent value="Ongoing">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
+              {isFetching && (
+                <div className="w-full flex items-center justify-center pb-1 gap-x-2 text-sm text-muted-foreground">
+                  <Spinner /> Loading...
+                </div>
+              )}
               {ongoing.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
@@ -177,6 +197,11 @@ export const Voting = () => {
           </TabsContent>
           <TabsContent value="Resolved">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
+              {isFetching && (
+                <div className="w-full flex items-center justify-center pb-1 gap-x-2 text-sm text-muted-foreground">
+                  <Spinner /> Loading...
+                </div>
+              )}
               {resolved.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
@@ -215,6 +240,11 @@ export const Voting = () => {
           </TabsContent>
           <TabsContent value="Upcoming">
             <div className="voting-container h-[60svh] flex flex-col gap-y-2 overflow-y-scroll">
+              {isFetching && (
+                <div className="w-full flex items-center justify-center pb-1 gap-x-2 text-sm text-muted-foreground">
+                  <Spinner /> Loading...
+                </div>
+              )}
               {upcoming.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
@@ -482,7 +512,7 @@ export const DetailsDialog = ({
         contractAddress as `0x${string}`
       );
       if (success) {
-        toast.success("Puzzle updated successfully, Refreshing...", {
+        toast.success("Puzzle Verified, Refreshing...", {
           duration: 5000,
         });
         await delay(3000);
@@ -573,7 +603,7 @@ export const DetailsDialog = ({
           <InputGroupAddon align="inline-start">
             <Label
               htmlFor="public-parameters-contract-address"
-              className="flex flex-wrap gap-x-3 items-center justify-center cursor-pointer text-foreground"
+              className="flex flex-wrap gap-x-2 items-center justify-center cursor-pointer text-foreground"
             >
               <Badge variant="noEffect">Contract</Badge>
               <Link
@@ -869,7 +899,7 @@ export const VoteActionDialog = ({
         toast.dismiss(toastId);
         toast.dismiss(toastId2);
       }
-      console.log("redndered");
+
       fetchNativeBalance();
       fetchTokenBalance();
     };

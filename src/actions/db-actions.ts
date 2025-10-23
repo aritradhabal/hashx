@@ -6,12 +6,19 @@ import {
   HBAR_LOCKING_CONTRACT_ADDRESS,
 } from "@/constants";
 import { eq, and, lte, gte, lt, gt, asc, desc } from "drizzle-orm";
-import { getTransactionReceipt } from "@wagmi/core";
-import { config } from "@/utils/WagmiConfig";
-import { Address, Hex, hexToBigInt } from "viem";
-import { decodeAbiParameters, getAddress } from "viem";
+import { getBlock, getTransactionReceipt } from "@wagmi/core";
+import { config, viemClient } from "@/utils/WagmiConfig";
 import { readContract } from "@wagmi/core";
 import { CreateVoteContractConfig } from "@/utils/contracts";
+import { parseAbiItem } from "viem";
+import axios from "axios";
+import {
+  decodeAbiParameters,
+  getAddress,
+  hexToBigInt,
+  Hex,
+  Address,
+} from "viem";
 
 export interface secretParamsT {
   marketId: bigint;
@@ -43,6 +50,12 @@ interface VoteConfigT {
   endTimestamp: bigint;
   thresholdVotes: number;
   creator: Address;
+}
+interface getVoteConfigT {
+  resolvedOption: bigint;
+  unlockedSecret: `0x${string}`;
+  solver: `0x${string}`;
+  totalVotes: number;
 }
 export type VoteCardData = {
   marketId: string;
@@ -77,8 +90,7 @@ export type VoteCardData = {
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
-  getSolver: string;
-  getUnlockedSK: string;
+  getVoteData: getVoteConfigT;
 };
 
 export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
@@ -402,12 +414,10 @@ export async function getUpcomingVotes() {
 }
 
 export async function updatePuzzleData(contractAddress: `0x${string}`) {
-  const solver = await getDataFromContract(contractAddress, "getSolver");
-  const unlockedSecret = await getDataFromContract(
-    contractAddress,
-    "getUnlockedSK"
-  );
-
+  const voteData = await getDataFromContract(contractAddress, "getVoteData");
+  const unlockedSecret = voteData.unlockedSecret;
+  const solver = voteData.solver;
+  
   const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
   const ZERO_BYTES32 =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -425,4 +435,94 @@ export async function updatePuzzleData(contractAddress: `0x${string}`) {
     .where(eq(secrets.contractAddress, contractAddress));
 
   return { success: true, solver, unlockedSecret };
+}
+
+export async function getBlockNumbers(
+  startTimestamp: bigint,
+  endTimestamp: bigint
+): Promise<{
+  startingBlock: bigint;
+  endingBlock: bigint;
+}> {
+  const startingBlockUrl = `https://testnet.mirrornode.hedera.com/api/v1/blocks?limit=1&timestamp=lte%3A${startTimestamp}`;
+  const endingBlockUrl = `https://testnet.mirrornode.hedera.com/api/v1/blocks?limit=1&timestamp=gte%3A${endTimestamp}`;
+  const startingBlockResponse = await axios.get(startingBlockUrl);
+  const endingBlockResponse = await axios.get(endingBlockUrl);
+  const startingBlock = BigInt(startingBlockResponse.data.blocks[0].number);
+  const endingBlock = BigInt(endingBlockResponse.data.blocks[0].number);
+
+  return { startingBlock, endingBlock };
+}
+
+export async function getAllCastedVotes(contractAddress: `0x${string}`) {
+  const voteConfig = await getDataFromContract(
+    contractAddress,
+    "getVoteConfig"
+  );
+
+  const startTimestamp = BigInt(voteConfig.startTimestamp);
+  const endTimestamp = BigInt(voteConfig.endTimestamp);
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  if (now < endTimestamp) {
+    return { success: false, error: "Vote not started or ended" };
+  }
+  const contractAddressParsed = getAddress(contractAddress);
+
+  const [row] = await db
+    .select({ verified: secrets.verified })
+    .from(secrets)
+    .where(
+      and(
+        eq(secrets.contractAddress, contractAddressParsed),
+        eq(secrets.verified, true)
+      )
+    )
+    .limit(1);
+
+  const isVerified = !!row?.verified;
+  if (!isVerified) {
+    return { success: false, error: "Contract not verified" };
+  }
+  const { startingBlock, endingBlock } = await getBlockNumbers(
+    startTimestamp,
+    endTimestamp
+  );
+  const voteCastEvent = parseAbiItem(
+    "event VoteCast(address indexed voter, uint256 indexed userPublicKey, bytes option)"
+  );
+  const eventLogs = await viemClient.getLogs({
+    address: contractAddressParsed,
+    event: voteCastEvent,
+    fromBlock: startingBlock,
+    toBlock: endingBlock,
+  });
+  const parsedEventLogs = parseVoteCastLogs(eventLogs);
+
+  return parsedEventLogs;
+}
+
+type ParsedVote = {
+  userAddress: Address;
+  pk: bigint;
+  option: string;
+};
+export async function parseVoteCastLogs(
+  logs: Array<{
+    topics: readonly (Hex | string)[];
+    data: Hex | string;
+    removed?: boolean;
+  }>
+): Promise<ParsedVote[]> {
+  return logs
+    .filter((l) => !l.removed)
+    .map((l) => {
+      const [rawAddr] = decodeAbiParameters(
+        [{ type: "address" }],
+        l.topics[1] as Hex
+      );
+      const userAddress = getAddress(rawAddr);
+      const pk = hexToBigInt(l.topics[2] as Hex);
+      const [option] = decodeAbiParameters([{ type: "bytes" }], l.data as Hex);
+      return { userAddress, pk, option: option.slice(2) as string };
+    });
 }

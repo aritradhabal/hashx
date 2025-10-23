@@ -8,3 +8,9 @@ export const config = createConfig({
     [hederaTestnet.id]: http(HederaTestnetRpcUrl),
   },
 });
+
+import { createPublicClient } from "viem";
+export const viemClient = createPublicClient({
+  chain: hederaTestnet,
+  transport: http(),
+});

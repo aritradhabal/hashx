@@ -24,10 +24,18 @@ interface HBARlockingContract {
 
 contract CreateVote {
     // Events
-    event VoteCast(address indexed voter, bytes indexed option);
+    event VoteCast(
+        address indexed voter,
+        uint256 indexed userPublicKey,
+        bytes option
+    );
 
-    event PuzzleSolved(address);
-    event WinningOption(uint256, uint256);
+    event PuzzleSolved(address indexed solver, bytes32 indexed unlockedSecret);
+    event VoteFinalized(
+        uint256 indexed optionA,
+        uint256 indexed optionB,
+        uint256 indexed winner
+    );
 
     struct VoteConfig {
         uint256 optionA;
@@ -135,12 +143,8 @@ contract CreateVote {
         return keccak256(abi.encodePacked(pp.hashedSK));
     }
 
-    function getSolver() public view returns (address) {
-        return data.solver;
-    }
-
-    function getUnlockedSK() public view returns (bytes32) {
-        return data.unlockedSecret;
+    function getVoteData() public view returns (VoteData memory) {
+        return data;
     }
 
     function castVote(
@@ -166,7 +170,7 @@ contract CreateVote {
         encryptedVotes[_userPublicKey] = _option;
         deposits[msg.sender] = _amount;
         LockingContract.transferWHbar(msg.sender, address(this), _amount);
-        emit VoteCast(msg.sender, _option);
+        emit VoteCast(msg.sender, _userPublicKey, _option);
     }
 
     function verifySecret(bytes32 _userSecret) public returns (bool) {
@@ -188,7 +192,7 @@ contract CreateVote {
                     msg.sender,
                     (config.rewards * 10) / 100
                 );
-                emit PuzzleSolved(msg.sender);
+                emit PuzzleSolved(msg.sender, _userSecret);
                 return true;
             } else {
                 revert IncorrectSecretKey(_userSecret);

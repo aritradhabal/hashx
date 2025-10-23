@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { FaMinus, FaPlus } from "react-icons/fa6";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useWriteContract } from "wagmi";
 import {
   wagmiContractConfig,
   CreateVoteFactoryContractConfig,
