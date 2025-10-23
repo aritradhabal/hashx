@@ -284,9 +284,10 @@ export const CreateVote = () => {
                     duration: 10000,
                   });
                   setToast1(t1);
-                  const marketId = BigInt(
-                    (Date.now() << 20) ^ Math.floor(Math.random() * (1 << 20))
-                  );
+                  const marketId =
+                    ((BigInt(Date.now()) << 20n) ^
+                      BigInt(Math.floor(Math.random() * (1 << 20)))) &
+                    ((1n << 63n) - 1n);
                   console.log(marketId.toString());
                   const {
                     success: storedInServer,

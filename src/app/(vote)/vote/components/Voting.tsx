@@ -38,6 +38,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  InputGroupText,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
@@ -61,6 +62,7 @@ export const Voting = () => {
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
   const [pendingVotes, setPendingVotes] = useState<number>(0);
   const [resolvedVotes, setResolvedVotes] = useState<number>(0);
+
   useEffect(() => {
     const fetchContracts = async (activeTab: TabValue) => {
       if (activeTab === "Ongoing") {
@@ -568,6 +570,25 @@ export const DetailsDialog = ({
           <DialogDescription>Vote ID: {marketId}</DialogDescription>
         </DialogHeader>
         <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <Label
+              htmlFor="public-parameters-contract-address"
+              className="flex flex-wrap gap-x-3 items-center justify-center cursor-pointer text-foreground"
+            >
+              <Badge variant="noEffect">Contract</Badge>
+              <Link
+                href={`https://hashscan.io/testnet/contract/${contractAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="text-foreground hover:underline">
+                  {contractAddress}
+                </span>
+              </Link>
+            </Label>
+          </InputGroupAddon>
+        </InputGroup>
+        <InputGroup>
           <InputGroupTextarea
             readOnly={true}
             disabled={true}
@@ -621,7 +642,7 @@ export const DetailsDialog = ({
           />
           <InputGroupAddon align="block-start">
             <Label htmlFor="public-parameters-sk" className="text-foreground">
-              SecretKey (SK_Locked)
+              Encrypted SecretKey
             </Label>
           </InputGroupAddon>
         </InputGroup>
@@ -740,6 +761,7 @@ import { encrypt } from "@/actions/encryptVote";
 import { verifyVoteSignature } from "@/app/actions/verification";
 import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
 import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
+import Link from "next/link";
 
 interface CastVoteArgs {
   userPublicKey: bigint;
