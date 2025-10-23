@@ -245,6 +245,7 @@ export const Voting = () => {
                   setResolved={setResolved}
                   setUpcoming={setUpcoming}
                   activeTab={activeTab}
+                  timeleft={Date.now() / 1000 - Number(vote.startTimestamp)}
                 />
               ))}
             </div>
@@ -352,11 +353,6 @@ export const VoteCard = ({
             Claim Rewards
           </Button>
         )}
-        {activeTab === "Upcoming" && (
-          <Button variant="outline" size="sm">
-            View
-          </Button>
-        )}
       </ItemActions>
       {showBadges && (
         <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
@@ -411,7 +407,7 @@ export const VoteCard = ({
               setUpcoming={setUpcoming}
             />
 
-            {activeTab === "Ongoing" && (
+            {(activeTab === "Ongoing" || activeTab === "Upcoming") && (
               <Badge variant={"noEffect"}>
                 {timeleft ? formatTimeLeft(timeleft) : "0m 0s"} Left
               </Badge>
@@ -429,6 +425,7 @@ export const VoteCard = ({
   );
 };
 
+import delay from "@/utils/delay";
 export const DetailsDialog = ({
   N,
   t,
@@ -468,6 +465,7 @@ export const DetailsDialog = ({
   const [btnClicked, setBtnClicked] = useState(false);
   const [submitBtnClicked, setSubmitBtnClicked] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [PuzzletoastId, setPuzzletoastId] = useState<string | number>();
   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
@@ -478,11 +476,16 @@ export const DetailsDialog = ({
   useEffect(() => {
     if (!isConfirmed) return;
     const updateData = async () => {
-      const { success, solver, unlockedSecret } = await updatePuzzleData(
+      const { success } = await updatePuzzleData(
         contractAddress as `0x${string}`
       );
       if (success) {
-        toast.success("Puzzle updated successfully", { duration: 3500 });
+        toast.success("Puzzle updated successfully, Refreshing...", {
+          duration: 5000,
+        });
+        await delay(3000);
+        window.location.reload();
+        toast.dismiss(PuzzletoastId);
         setDialogOpen(false);
         setSkRecovered("0x0000000000000000000000000000000000000000");
         setBtnClicked(false);
@@ -492,7 +495,8 @@ export const DetailsDialog = ({
         setResolved([]);
         setUpcoming([]);
       } else {
-        toast.error("Failed to update puzzle", { duration: 3500 });
+        toast.error("Failed to update puzzle", { duration: 5000 });
+        toast.dismiss(PuzzletoastId);
         setDialogOpen(false);
         setSkRecovered("0x0000000000000000000000000000000000000000");
         setBtnClicked(false);
@@ -515,7 +519,10 @@ export const DetailsDialog = ({
   };
   const submitPuzzleSolution = async () => {
     setSubmitBtnClicked(true);
-    const toastId = toast.loading("Submitting puzzle solution...");
+    const toastId = toast.loading("Submitting Puzzle Solution...", {
+      duration: 10000,
+    });
+    setPuzzletoastId(toastId);
     try {
       const txHash = await writeContractAsync({
         address: contractAddress as `0x${string}`,
@@ -524,9 +531,9 @@ export const DetailsDialog = ({
         args: [sk_Recovered],
       });
       setTxHash(txHash);
-      toast.success("Transaction successful", {
-        id: toastId,
-        duration: 3500,
+      toast.loading("Transaction Submitted...", {
+        id: PuzzletoastId,
+        duration: 10000,
         action: {
           label: "View on Explorer",
           onClick: () => {
@@ -544,7 +551,7 @@ export const DetailsDialog = ({
       }
     } catch (error) {
       toast.error("Transaction failed. Try again later.", {
-        id: toastId,
+        id: PuzzletoastId,
       });
     }
   };
