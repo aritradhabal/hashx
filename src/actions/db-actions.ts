@@ -462,9 +462,10 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   }
   let totalVotes = 0;
   try {
+    const { unlockedSecret, totalVotes: _totalVotes } =
+      await getDataFromContract(contractAddress, "getVoteData");
+    totalVotes = _totalVotes;
     if (!isServer) {
-      const { unlockedSecret, totalVotes: _totalVotes } =
-        await getDataFromContract(contractAddress, "getVoteData");
       const ZERO_BYTES32 =
         "0x0000000000000000000000000000000000000000000000000000000000000000";
       if (unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()) {
@@ -474,7 +475,6 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
         };
       }
       secretKey = unlockedSecret;
-      totalVotes = _totalVotes;
     }
   } catch (error) {
     console.error("Error getting vote data from contract", error);

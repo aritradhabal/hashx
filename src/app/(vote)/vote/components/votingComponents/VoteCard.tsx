@@ -196,12 +196,19 @@ export const VoteCard = ({
     if (!success) {
       toast.error("Error fetching merkle proof", {
         id: toastIdClaim,
-        duration: 2000,
+        duration: 3500,
       });
       setIsClaimingRewards(false);
       setBtnDisabled(false);
       return;
     } else {
+      if (!Array.isArray(data) || data.length === 0) {
+        toast.error("No merkle proof found", {
+          description: "Your voted option has not been selected as the winner.",
+          id: toastIdClaim,
+          duration: 5000,
+        });
+      }
       const txHash = await writeContractAsync({
         address: contractAddress as `0x${string}`,
         abi: CREATEVOTE_ABI,
@@ -232,6 +239,10 @@ export const VoteCard = ({
       "getVoteData"
     );
     if (resolvedOption !== 0n) {
+      toast.success("Vote Resolved", {
+        duration: 3500,
+        id: toastIdClaim,
+      });
       setResolvedOption(resolvedOption);
       setIsVerifyingResult(false);
       setBtnDisabled(false);
