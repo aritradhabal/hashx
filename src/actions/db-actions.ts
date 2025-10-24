@@ -22,20 +22,10 @@ import {
 } from "viem";
 import { decryptVote } from "./decryptVote";
 import { buildWinnerLoserMerkles } from "./merkletree";
-import { walletClient } from "./walletTransaction";
 
-export interface secretParamsT {
-  marketId: bigint;
-  N: `0x${string}`;
-  t: bigint;
-  a: number;
-  skLocked: `0x${string}`;
-  hashedSK: `0x${string}`;
-  publicKey: `0x${string}`;
-  secretKey: `0x${string}`;
-  verified: boolean;
-  server: boolean;
-}
+import { getWalletClient } from "./walletTransaction";
+
+import type { secretParamsT } from "./types";
 
 interface ppT {
   N: string;
@@ -61,36 +51,7 @@ interface VoteDataT {
   solver: `0x${string}`;
   totalVotes: number;
 }
-export type VoteCardData = {
-  marketId: string;
-  title: string;
-  description: string;
-  rewards: string;
-  optionATitle: string;
-  optionBTitle: string;
-  startTimestamp: string;
-  endTimestamp: string;
-  contractAddress: string | null;
-  verified: boolean;
-  server: boolean;
-  pp: {
-    N: string;
-    t: string;
-    a: number;
-    skLocked: string;
-    hashedSK: string;
-    publicKey: string;
-  };
-  tallies: {
-    optionA: string;
-    optionB: string;
-  };
-  data: {
-    solver: string | null;
-    unlockedSecret: string | null;
-    resolvedOption: bigint | null;
-  };
-};
+import type { VoteCardData } from "./types";
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
@@ -258,6 +219,7 @@ export async function verifySecret(txHash: `0x${string}`) {
 const _marketTitle = "Who will win the election?";
 const _marketDescription =
   "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option";
+
 const toVoteCardData = (row: {
   marketId: bigint;
   N: string;
@@ -625,6 +587,7 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   }
   let txHash: `0x${string}`;
   try {
+    const walletClient = await getWalletClient();
     const _txHash = await walletClient.writeContract({
       address: contractAddressParsed,
       abi: CREATEVOTE_ABI,

@@ -1,6 +1,7 @@
 "use client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { VoteCardData } from "@/actions/types";
 import {
   Item,
   ItemActions,
@@ -11,106 +12,42 @@ import {
 } from "@/components/ui/item";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import React, { useEffect, useState } from "react";
-import { FcGoogle } from "react-icons/fc";
-import { RiPerplexityFill } from "react-icons/ri";
-import { FaXTwitter } from "react-icons/fa6";
-import {
-  CreateVoteContractConfig,
-  wagmiContractConfig,
-} from "@/utils/contracts";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  useAccount,
-  useReadContract,
-  useSignMessage,
-  useSignTypedData,
-  useWaitForTransactionReceipt,
-  useWriteContract,
-} from "wagmi";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText,
-  InputGroupTextarea,
-} from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
-import {
-  getActiveVotes,
-  updatePuzzleData,
-  getResolvedVotes,
-  getUpcomingVotes,
-  getDataFromContract,
-  getAllCastedVotes,
-  getMerkleProof,
-} from "@/actions/db-actions";
-import type { VoteCardData } from "@/actions/db-actions";
-import { keccak256 } from "viem";
 type TabValue = "Ongoing" | "Resolved" | "Upcoming";
-import { CREATEVOTE_ABI } from "@/constants";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { VoteCard } from "./votingComponents/VoteCard";
+import { fetchContracts } from "./votingComponents/fetchContracts";
+
 export const Voting = () => {
   const [activeTab, setActiveTab] = React.useState<TabValue>("Ongoing");
   const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
   const [resolved, setResolved] = useState<VoteCardData[]>([]);
   const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
-  const [pendingVotes, setPendingVotes] = useState<number>(0);
-  const [resolvedVotes, setResolvedVotes] = useState<number>(0);
   const [isFetching, setIsFetching] = useState(false);
   const [isUserVoted, setIsUserVoted] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchContracts = async (activeTab: TabValue) => {
+    const fetchContractsClient = async (activeTab: TabValue) => {
       setIsFetching(true);
-      try {
+      const { success, data } = await fetchContracts(activeTab);
+      if (success) {
         if (activeTab === "Ongoing") {
-          const { success, data } = await getActiveVotes();
-          if (!cancelled && success && data) {
-            if (data.length != ongoing.length) {
-              setOngoing(data);
-            }
-          }
+          setOngoing(data as VoteCardData[]);
         }
         if (activeTab === "Resolved") {
-          const { success, data } = await getResolvedVotes();
-          if (!cancelled && success && data) {
-            if (data.length != resolved.length) {
-              setResolved(data);
-              setResolvedVotes(data.length);
-            }
-          }
+          setResolved(data as VoteCardData[]);
         }
         if (activeTab === "Upcoming") {
-          const { success, data } = await getUpcomingVotes();
-          if (!cancelled && success && data) {
-            if (data.length != upcoming.length) {
-              setUpcoming(data);
-              setPendingVotes(data.length);
-            }
-          }
+          setUpcoming(data as VoteCardData[]);
         }
-      } finally {
-        if (!cancelled) setIsFetching(false);
+        setIsFetching(false);
+      } else {
+        setIsFetching(false);
+        toast.error("Failed to fetch data. Try again...", { duration: 3500 });
       }
     };
 
-    fetchContracts(activeTab);
-    return () => {
-      cancelled = true;
-    };
+    fetchContractsClient(activeTab);
   }, [activeTab]);
 
   return (
@@ -129,10 +66,10 @@ export const Voting = () => {
           </ItemContent>
           <ItemActions>
             <Button variant="outline" size="sm">
-              Upcoming ({pendingVotes})
+              Upcoming ({upcoming.length})
             </Button>
             <Button variant="outline" size="sm">
-              Resolved ({resolvedVotes})
+              Resolved ({resolved.length})
             </Button>
           </ItemActions>
         </Item>
@@ -290,1017 +227,1017 @@ export const Voting = () => {
   );
 };
 
-export const VoteCard = ({
-  optionA,
-  optionB,
-  optionAValue,
-  optionBValue,
-  title,
-  description,
-  showBadges,
-  N,
-  t,
-  a,
-  skLocked,
-  publicKey,
-  rewards,
-  marketId,
-  server,
-  hashedSK,
-  contractAddress,
-  solver,
-  unlockedSecret,
-  setOngoing,
-  setResolved,
-  setUpcoming,
-  activeTab,
-  timeleft,
-}: {
-  optionA: string;
-  optionB: string;
-  optionAValue: string;
-  optionBValue: string;
-  title: string;
-  description: string;
-  showBadges?: boolean;
-  N: string;
-  t: string;
-  a: number;
-  skLocked: string;
-  publicKey: string;
-  rewards: string;
-  marketId: string;
-  server: boolean;
-  hashedSK: string;
-  contractAddress: string;
-  solver: string;
-  unlockedSecret: string;
-  setOngoing: (votes: VoteCardData[]) => void;
-  setResolved: (votes: VoteCardData[]) => void;
-  setUpcoming: (votes: VoteCardData[]) => void;
-  activeTab: TabValue;
-  timeleft?: number;
-}) => {
-  const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+// export const VoteCard = ({
+//   optionA,
+//   optionB,
+//   optionAValue,
+//   optionBValue,
+//   title,
+//   description,
+//   showBadges,
+//   N,
+//   t,
+//   a,
+//   skLocked,
+//   publicKey,
+//   rewards,
+//   marketId,
+//   server,
+//   hashedSK,
+//   contractAddress,
+//   solver,
+//   unlockedSecret,
+//   setOngoing,
+//   setResolved,
+//   setUpcoming,
+//   activeTab,
+//   timeleft,
+// }: {
+//   optionA: string;
+//   optionB: string;
+//   optionAValue: string;
+//   optionBValue: string;
+//   title: string;
+//   description: string;
+//   showBadges?: boolean;
+//   N: string;
+//   t: string;
+//   a: number;
+//   skLocked: string;
+//   publicKey: string;
+//   rewards: string;
+//   marketId: string;
+//   server: boolean;
+//   hashedSK: string;
+//   contractAddress: string;
+//   solver: string;
+//   unlockedSecret: string;
+//   setOngoing: (votes: VoteCardData[]) => void;
+//   setResolved: (votes: VoteCardData[]) => void;
+//   setUpcoming: (votes: VoteCardData[]) => void;
+//   activeTab: TabValue;
+//   timeleft?: number;
+// }) => {
+//   const { address } = useAccount();
+//   const { writeContractAsync } = useWriteContract();
 
-  const formatTimeLeft = (totalSeconds: number) => {
-    const t = Math.max(0, Math.floor(totalSeconds));
-    const days = Math.floor(t / 86400);
-    const hours = Math.floor((t % 86400) / 3600);
-    const minutes = Math.floor((t % 3600) / 60);
+//   const formatTimeLeft = (totalSeconds: number) => {
+//     const t = Math.max(0, Math.floor(totalSeconds));
+//     const days = Math.floor(t / 86400);
+//     const hours = Math.floor((t % 86400) / 3600);
+//     const minutes = Math.floor((t % 3600) / 60);
 
-    const parts: string[] = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    parts.push(`${minutes}m`);
-    return parts.join(" ");
-  };
-  const [resolvedOption, setResolvedOption] = useState<bigint | undefined>();
+//     const parts: string[] = [];
+//     if (days > 0) parts.push(`${days}d`);
+//     if (hours > 0) parts.push(`${hours}h`);
+//     parts.push(`${minutes}m`);
+//     return parts.join(" ");
+//   };
+//   const [resolvedOption, setResolvedOption] = useState<bigint | undefined>();
 
-  const [isVerifyingResult, setIsVerifyingResult] = useState(false);
-  const [isClaimingRewards, setIsClaimingRewards] = useState(false);
-  const [txHashForClaim, setTxHashForClaim] = useState<`0x${string}`>();
-  const [btnDisabled, setBtnDisabled] = useState(false);
-  const [toastIdClaim, setToastIdClaim] = useState<string | number>(
-    "verify-or-claim-toast"
-  );
-  const { fetchBalance: fetchTokenBalance } = useTokenBalanceStore();
-  const { isSuccess, isError } = useWaitForTransactionReceipt({
-    hash: txHashForClaim as `0x${string}`,
-    query: {
-      enabled: !!txHashForClaim,
-    },
-  });
+//   const [isVerifyingResult, setIsVerifyingResult] = useState(false);
+//   const [isClaimingRewards, setIsClaimingRewards] = useState(false);
+//   const [txHashForClaim, setTxHashForClaim] = useState<`0x${string}`>();
+//   const [btnDisabled, setBtnDisabled] = useState(false);
+//   const [toastIdClaim, setToastIdClaim] = useState<string | number>(
+//     "verify-or-claim-toast"
+//   );
+//   const { fetchBalance: fetchTokenBalance } = useTokenBalanceStore();
+//   const { isSuccess, isError } = useWaitForTransactionReceipt({
+//     hash: txHashForClaim as `0x${string}`,
+//     query: {
+//       enabled: !!txHashForClaim,
+//     },
+//   });
 
-  useEffect(() => {
-    if (!isSuccess && !isError) return;
-    const checkTxHashForClaimStatus = async () => {
-      if (isSuccess) {
-        toast.success("Transaction Successful", {
-          duration: 3500,
-          id: toastIdClaim,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
-                "_blank"
-              );
-            },
-          },
-        });
-        setBtnDisabled(false);
-        setIsVerifyingResult(false);
-        setIsClaimingRewards(false);
-        fetchTokenBalance();
-      }
-      if (isError) {
-        toast.error("Transaction Failed", {
-          duration: 3500,
-          id: toastIdClaim,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
-                "_blank"
-              );
-            },
-          },
-        });
-        setBtnDisabled(false);
-        setIsVerifyingResult(false);
-        setIsClaimingRewards(false);
-        fetchTokenBalance();
-      }
-    };
-    checkTxHashForClaimStatus();
-  }, [txHashForClaim, isSuccess, isError]);
+//   useEffect(() => {
+//     if (!isSuccess && !isError) return;
+//     const checkTxHashForClaimStatus = async () => {
+//       if (isSuccess) {
+//         toast.success("Transaction Successful", {
+//           duration: 3500,
+//           id: toastIdClaim,
+//           action: {
+//             label: "View on Explorer",
+//             onClick: () => {
+//               window.open(
+//                 `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+//                 "_blank"
+//               );
+//             },
+//           },
+//         });
+//         setBtnDisabled(false);
+//         setIsVerifyingResult(false);
+//         setIsClaimingRewards(false);
+//         fetchTokenBalance();
+//       }
+//       if (isError) {
+//         toast.error("Transaction Failed", {
+//           duration: 3500,
+//           id: toastIdClaim,
+//           action: {
+//             label: "View on Explorer",
+//             onClick: () => {
+//               window.open(
+//                 `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+//                 "_blank"
+//               );
+//             },
+//           },
+//         });
+//         setBtnDisabled(false);
+//         setIsVerifyingResult(false);
+//         setIsClaimingRewards(false);
+//         fetchTokenBalance();
+//       }
+//     };
+//     checkTxHashForClaimStatus();
+//   }, [txHashForClaim, isSuccess, isError]);
 
-  const claimRewards = async () => {
-    setIsClaimingRewards(true);
-    setBtnDisabled(true);
-    const { success, data } = await getMerkleProof({
-      contractAddress: contractAddress as `0x${string}`,
-      userAddress: address as `0x${string}`,
-    });
-    if (!success) {
-      toast.error("Error fetching merkle proof", {
-        id: toastIdClaim,
-        duration: 2000,
-      });
-      setIsClaimingRewards(false);
-      setBtnDisabled(false);
-      return;
-    } else {
-      const txHash = await writeContractAsync({
-        address: contractAddress as `0x${string}`,
-        abi: CREATEVOTE_ABI,
-        functionName: "claimRewards",
-        args: [data],
-      });
-      setTxHashForClaim(txHash);
-      toast.loading("Transaction Submitted...", {
-        id: toastIdClaim,
-        duration: 10000,
-        action: {
-          label: "View on Explorer",
-          onClick: () => {
-            window.open(
-              `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
-              "_blank"
-            );
-          },
-        },
-      });
-    }
-  };
-  const verifyResult = async () => {
-    setIsVerifyingResult(true);
-    setBtnDisabled(true);
-    const { resolvedOption } = await getDataFromContract(
-      contractAddress as `0x${string}`,
-      "getVoteData"
-    );
-    if (resolvedOption !== 0n) {
-      setResolvedOption(resolvedOption);
-      setIsVerifyingResult(false);
-      setBtnDisabled(false);
-      return;
-    } else {
-      const { success, data, error } = await getAllCastedVotes(
-        contractAddress as `0x${string}`
-      );
-      if (!success) {
-        toast.error(error as string, {
-          duration: 2000,
-        });
-        setIsVerifyingResult(false);
-        setBtnDisabled(false);
-        return;
-      } else {
-        setTxHashForClaim(data);
-        toast.loading("Transaction Submitted...", {
-          id: toastIdClaim,
-          duration: 10000,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
-                "_blank"
-              );
-            },
-          },
-        });
-        setBtnDisabled(true);
-        setBtnDisabled(false);
-      }
-    }
-  };
+//   const claimRewards = async () => {
+//     setIsClaimingRewards(true);
+//     setBtnDisabled(true);
+//     const { success, data } = await getMerkleProof({
+//       contractAddress: contractAddress as `0x${string}`,
+//       userAddress: address as `0x${string}`,
+//     });
+//     if (!success) {
+//       toast.error("Error fetching merkle proof", {
+//         id: toastIdClaim,
+//         duration: 2000,
+//       });
+//       setIsClaimingRewards(false);
+//       setBtnDisabled(false);
+//       return;
+//     } else {
+//       const txHash = await writeContractAsync({
+//         address: contractAddress as `0x${string}`,
+//         abi: CREATEVOTE_ABI,
+//         functionName: "claimRewards",
+//         args: [data],
+//       });
+//       setTxHashForClaim(txHash);
+//       toast.loading("Transaction Submitted...", {
+//         id: toastIdClaim,
+//         duration: 10000,
+//         action: {
+//           label: "View on Explorer",
+//           onClick: () => {
+//             window.open(
+//               `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+//               "_blank"
+//             );
+//           },
+//         },
+//       });
+//     }
+//   };
+//   const verifyResult = async () => {
+//     setIsVerifyingResult(true);
+//     setBtnDisabled(true);
+//     const { resolvedOption } = await getDataFromContract(
+//       contractAddress as `0x${string}`,
+//       "getVoteData"
+//     );
+//     if (resolvedOption !== 0n) {
+//       setResolvedOption(resolvedOption);
+//       setIsVerifyingResult(false);
+//       setBtnDisabled(false);
+//       return;
+//     } else {
+//       const { success, data, error } = await getAllCastedVotes(
+//         contractAddress as `0x${string}`
+//       );
+//       if (!success) {
+//         toast.error(error as string, {
+//           duration: 2000,
+//         });
+//         setIsVerifyingResult(false);
+//         setBtnDisabled(false);
+//         return;
+//       } else {
+//         setTxHashForClaim(data);
+//         toast.loading("Transaction Submitted...", {
+//           id: toastIdClaim,
+//           duration: 10000,
+//           action: {
+//             label: "View on Explorer",
+//             onClick: () => {
+//               window.open(
+//                 `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+//                 "_blank"
+//               );
+//             },
+//           },
+//         });
+//         setBtnDisabled(true);
+//         setBtnDisabled(false);
+//       }
+//     }
+//   };
 
-  return (
-    <Item variant="outline" className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl">
-      <ItemContent>
-        <ItemTitle>{title}</ItemTitle>
-        <ItemDescription className="flex flex-wrap break-words whitespace-normal">
-          {description}
-        </ItemDescription>
-      </ItemContent>
-      <ItemActions>
-        {activeTab === "Ongoing" && (
-          <>
-            <VoteActionDialog
-              option={optionA}
-              contractAddress={contractAddress}
-              marketId={marketId}
-              rewards={rewards}
-              optionValue={optionAValue}
-              publicKey={publicKey}
-            />
-            <VoteActionDialog
-              option={optionB}
-              contractAddress={contractAddress}
-              marketId={marketId}
-              rewards={rewards}
-              optionValue={optionBValue}
-              publicKey={publicKey}
-            />
-          </>
-        )}
-        {activeTab === "Resolved" && (
-          <>
-            {!resolvedOption ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={verifyResult}
-                disabled={btnDisabled}
-              >
-                {isVerifyingResult ? (
-                  <>
-                    {" "}
-                    <Spinner /> Verifying Result...
-                  </>
-                ) : (
-                  "Verify Result"
-                )}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={claimRewards}
-                disabled={btnDisabled}
-              >
-                {isClaimingRewards ? (
-                  <>
-                    <Spinner /> Claiming Rewards...
-                  </>
-                ) : (
-                  "Claim Rewards"
-                )}
-              </Button>
-            )}
-          </>
-        )}
-        {activeTab === "Upcoming" && (
-          <DetailsDialog
-            marketId={marketId}
-            N={N}
-            t={t}
-            a={a}
-            skLocked={skLocked}
-            publicKey={publicKey}
-            server={server}
-            hashedSK={hashedSK}
-            contractAddress={contractAddress}
-            solver={solver}
-            unlockedSecret={unlockedSecret}
-            setOngoing={setOngoing}
-            setResolved={setResolved}
-            setUpcoming={setUpcoming}
-            activeTab={activeTab}
-          />
-        )}
-      </ItemActions>
-      {showBadges && (
-        <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
-          <div className="flex flex-row gap-x-1 items-center justify-center flex-wrap">
-            <Badge variant={"noEffect"} asChild>
-              <a
-                href={`https://www.google.com/search?q=${encodeURIComponent(
-                  title
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <FcGoogle /> Google
-              </a>
-            </Badge>
-            <Badge variant={"noEffect"} asChild>
-              <a
-                href={`https://www.perplexity.ai/search?q=${encodeURIComponent(
-                  title
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <RiPerplexityFill /> Perplexity
-              </a>
-            </Badge>
-            <Badge variant={"noEffect"} asChild>
-              <a
-                href={`https://www.x.com/search?q=${encodeURIComponent(title)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <FaXTwitter /> Twitter
-              </a>
-            </Badge>
-          </div>
-          <div className="flex flex-row gap-x-3 items-center justify-center flex-wrap">
-            {activeTab !== "Upcoming" && (
-              <DetailsDialog
-                marketId={marketId}
-                N={N}
-                t={t}
-                a={a}
-                skLocked={skLocked}
-                publicKey={publicKey}
-                server={server}
-                hashedSK={hashedSK}
-                contractAddress={contractAddress}
-                solver={solver}
-                unlockedSecret={unlockedSecret}
-                setOngoing={setOngoing}
-                setResolved={setResolved}
-                setUpcoming={setUpcoming}
-                activeTab={activeTab}
-              />
-            )}
+//   return (
+//     <Item variant="outline" className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl">
+//       <ItemContent>
+//         <ItemTitle>{title}</ItemTitle>
+//         <ItemDescription className="flex flex-wrap break-words whitespace-normal">
+//           {description}
+//         </ItemDescription>
+//       </ItemContent>
+//       <ItemActions>
+//         {activeTab === "Ongoing" && (
+//           <>
+//             <VoteActionDialog
+//               option={optionA}
+//               contractAddress={contractAddress}
+//               marketId={marketId}
+//               rewards={rewards}
+//               optionValue={optionAValue}
+//               publicKey={publicKey}
+//             />
+//             <VoteActionDialog
+//               option={optionB}
+//               contractAddress={contractAddress}
+//               marketId={marketId}
+//               rewards={rewards}
+//               optionValue={optionBValue}
+//               publicKey={publicKey}
+//             />
+//           </>
+//         )}
+//         {activeTab === "Resolved" && (
+//           <>
+//             {!resolvedOption ? (
+//               <Button
+//                 variant="outline"
+//                 size="sm"
+//                 onClick={verifyResult}
+//                 disabled={btnDisabled}
+//               >
+//                 {isVerifyingResult ? (
+//                   <>
+//                     {" "}
+//                     <Spinner /> Verifying Result...
+//                   </>
+//                 ) : (
+//                   "Verify Result"
+//                 )}
+//               </Button>
+//             ) : (
+//               <Button
+//                 variant="outline"
+//                 size="sm"
+//                 onClick={claimRewards}
+//                 disabled={btnDisabled}
+//               >
+//                 {isClaimingRewards ? (
+//                   <>
+//                     <Spinner /> Claiming Rewards...
+//                   </>
+//                 ) : (
+//                   "Claim Rewards"
+//                 )}
+//               </Button>
+//             )}
+//           </>
+//         )}
+//         {activeTab === "Upcoming" && (
+//           <DetailsDialog
+//             marketId={marketId}
+//             N={N}
+//             t={t}
+//             a={a}
+//             skLocked={skLocked}
+//             publicKey={publicKey}
+//             server={server}
+//             hashedSK={hashedSK}
+//             contractAddress={contractAddress}
+//             solver={solver}
+//             unlockedSecret={unlockedSecret}
+//             setOngoing={setOngoing}
+//             setResolved={setResolved}
+//             setUpcoming={setUpcoming}
+//             activeTab={activeTab}
+//           />
+//         )}
+//       </ItemActions>
+//       {showBadges && (
+//         <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
+//           <div className="flex flex-row gap-x-1 items-center justify-center flex-wrap">
+//             <Badge variant={"noEffect"} asChild>
+//               <a
+//                 href={`https://www.google.com/search?q=${encodeURIComponent(
+//                   title
+//                 )}`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//               >
+//                 <FcGoogle /> Google
+//               </a>
+//             </Badge>
+//             <Badge variant={"noEffect"} asChild>
+//               <a
+//                 href={`https://www.perplexity.ai/search?q=${encodeURIComponent(
+//                   title
+//                 )}`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//               >
+//                 <RiPerplexityFill /> Perplexity
+//               </a>
+//             </Badge>
+//             <Badge variant={"noEffect"} asChild>
+//               <a
+//                 href={`https://www.x.com/search?q=${encodeURIComponent(title)}`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//               >
+//                 <FaXTwitter /> Twitter
+//               </a>
+//             </Badge>
+//           </div>
+//           <div className="flex flex-row gap-x-3 items-center justify-center flex-wrap">
+//             {activeTab !== "Upcoming" && (
+//               <DetailsDialog
+//                 marketId={marketId}
+//                 N={N}
+//                 t={t}
+//                 a={a}
+//                 skLocked={skLocked}
+//                 publicKey={publicKey}
+//                 server={server}
+//                 hashedSK={hashedSK}
+//                 contractAddress={contractAddress}
+//                 solver={solver}
+//                 unlockedSecret={unlockedSecret}
+//                 setOngoing={setOngoing}
+//                 setResolved={setResolved}
+//                 setUpcoming={setUpcoming}
+//                 activeTab={activeTab}
+//               />
+//             )}
 
-            {(activeTab === "Ongoing" || activeTab === "Upcoming") && (
-              <Badge variant={"noEffect"}>
-                {timeleft ? formatTimeLeft(timeleft) : "0m 0s"} Left
-              </Badge>
-            )}
-            <Badge
-              variant={"noEffect"}
-              className="bg-background text-card-foreground border-background !pl-0"
-            >
-              Reward: {Math.floor(Number(rewards) / 1e8)} &#8463;
-            </Badge>
-          </div>
-        </ItemFooter>
-      )}
-    </Item>
-  );
-};
+//             {(activeTab === "Ongoing" || activeTab === "Upcoming") && (
+//               <Badge variant={"noEffect"}>
+//                 {timeleft ? formatTimeLeft(timeleft) : "0m 0s"} Left
+//               </Badge>
+//             )}
+//             <Badge
+//               variant={"noEffect"}
+//               className="bg-background text-card-foreground border-background !pl-0"
+//             >
+//               Reward: {Math.floor(Number(rewards) / 1e8)} &#8463;
+//             </Badge>
+//           </div>
+//         </ItemFooter>
+//       )}
+//     </Item>
+//   );
+// };
 
-import delay from "@/utils/delay";
-export const DetailsDialog = ({
-  N,
-  t,
-  a,
-  skLocked,
-  publicKey,
-  marketId,
-  server,
-  hashedSK,
-  contractAddress,
-  solver,
-  unlockedSecret,
-  setOngoing,
-  setResolved,
-  setUpcoming,
-  activeTab,
-}: {
-  N: string;
-  t: string;
-  a: number;
-  skLocked: string;
-  publicKey: string;
-  marketId: string;
-  server: boolean;
-  hashedSK: string;
-  contractAddress: string;
-  solver: string;
-  unlockedSecret: string;
-  setOngoing: (votes: VoteCardData[]) => void;
-  setResolved: (votes: VoteCardData[]) => void;
-  setUpcoming: (votes: VoteCardData[]) => void;
-  activeTab: TabValue;
-}) => {
-  const router = useRouter();
-  const { writeContractAsync } = useWriteContract();
-  const [sk_Recovered, setSkRecovered] = useState<`0x${string}`>();
-  const [isVerified, setIsVerified] = useState(false);
-  const [txHash, setTxHash] = useState<`0x${string}`>();
-  const [btnClicked, setBtnClicked] = useState(false);
-  const [submitBtnClicked, setSubmitBtnClicked] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [PuzzletoastId, setPuzzletoastId] = useState<string | number>();
-  const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
-    query: {
-      enabled: !!txHash,
-    },
-  });
+// import delay from "@/utils/delay";
+// export const DetailsDialog = ({
+//   N,
+//   t,
+//   a,
+//   skLocked,
+//   publicKey,
+//   marketId,
+//   server,
+//   hashedSK,
+//   contractAddress,
+//   solver,
+//   unlockedSecret,
+//   setOngoing,
+//   setResolved,
+//   setUpcoming,
+//   activeTab,
+// }: {
+//   N: string;
+//   t: string;
+//   a: number;
+//   skLocked: string;
+//   publicKey: string;
+//   marketId: string;
+//   server: boolean;
+//   hashedSK: string;
+//   contractAddress: string;
+//   solver: string;
+//   unlockedSecret: string;
+//   setOngoing: (votes: VoteCardData[]) => void;
+//   setResolved: (votes: VoteCardData[]) => void;
+//   setUpcoming: (votes: VoteCardData[]) => void;
+//   activeTab: TabValue;
+// }) => {
+//   const router = useRouter();
+//   const { writeContractAsync } = useWriteContract();
+//   const [sk_Recovered, setSkRecovered] = useState<`0x${string}`>();
+//   const [isVerified, setIsVerified] = useState(false);
+//   const [txHash, setTxHash] = useState<`0x${string}`>();
+//   const [btnClicked, setBtnClicked] = useState(false);
+//   const [submitBtnClicked, setSubmitBtnClicked] = useState(false);
+//   const [dialogOpen, setDialogOpen] = useState(false);
+//   const [PuzzletoastId, setPuzzletoastId] = useState<string | number>();
+//   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
+//     hash: txHash as `0x${string}`,
+//     query: {
+//       enabled: !!txHash,
+//     },
+//   });
 
-  useEffect(() => {
-    if (!isConfirmed) return;
-    const updateData = async () => {
-      const { success } = await updatePuzzleData(
-        contractAddress as `0x${string}`
-      );
-      if (success) {
-        toast.success("Puzzle Verified, Refreshing...", {
-          duration: 5000,
-        });
-        await delay(3000);
-        window.location.reload();
-        toast.dismiss(PuzzletoastId);
-        setDialogOpen(false);
-        setSkRecovered("0x0000000000000000000000000000000000000000");
-        setBtnClicked(false);
-        setSubmitBtnClicked(false);
-        setIsVerified(false);
-        setOngoing([]);
-        setResolved([]);
-        setUpcoming([]);
-      } else {
-        toast.error("Failed to update puzzle", { duration: 5000 });
-        toast.dismiss(PuzzletoastId);
-        setDialogOpen(false);
-        setSkRecovered("0x0000000000000000000000000000000000000000");
-        setBtnClicked(false);
-        setSubmitBtnClicked(false);
-        setIsVerified(false);
-      }
-    };
-    updateData();
-  }, [isConfirmed]);
+//   useEffect(() => {
+//     if (!isConfirmed) return;
+//     const updateData = async () => {
+//       const { success } = await updatePuzzleData(
+//         contractAddress as `0x${string}`
+//       );
+//       if (success) {
+//         toast.success("Puzzle Verified, Refreshing...", {
+//           duration: 5000,
+//         });
+//         await delay(3000);
+//         window.location.reload();
+//         toast.dismiss(PuzzletoastId);
+//         setDialogOpen(false);
+//         setSkRecovered("0x0000000000000000000000000000000000000000");
+//         setBtnClicked(false);
+//         setSubmitBtnClicked(false);
+//         setIsVerified(false);
+//         setOngoing([]);
+//         setResolved([]);
+//         setUpcoming([]);
+//       } else {
+//         toast.error("Failed to update puzzle", { duration: 5000 });
+//         toast.dismiss(PuzzletoastId);
+//         setDialogOpen(false);
+//         setSkRecovered("0x0000000000000000000000000000000000000000");
+//         setBtnClicked(false);
+//         setSubmitBtnClicked(false);
+//         setIsVerified(false);
+//       }
+//     };
+//     updateData();
+//   }, [isConfirmed]);
 
-  const verifyPuzzle = () => {
-    setBtnClicked(true);
-    if (!sk_Recovered) return;
-    const userKeccakhash = keccak256(sk_Recovered);
-    if (userKeccakhash === hashedSK) {
-      setIsVerified(true);
-    } else {
-      setIsVerified(false);
-    }
-  };
-  const submitPuzzleSolution = async () => {
-    setSubmitBtnClicked(true);
-    const toastId = toast.loading("Submitting Puzzle Solution...", {
-      duration: 10000,
-    });
-    setPuzzletoastId(toastId);
-    try {
-      const txHash = await writeContractAsync({
-        address: contractAddress as `0x${string}`,
-        abi: CREATEVOTE_ABI,
-        functionName: "verifySecret",
-        args: [sk_Recovered],
-      });
-      setTxHash(txHash);
-      toast.loading("Transaction Submitted...", {
-        id: PuzzletoastId,
-        duration: 10000,
-        action: {
-          label: "View on Explorer",
-          onClick: () => {
-            window.open(
-              `https://hashscan.io/testnet/transaction/${txHash}`,
-              "_blank"
-            );
-          },
-        },
-      });
-      if (isConfirmed || isError) {
-        setSubmitBtnClicked(false);
-        setBtnClicked(false);
-        setDialogOpen(false);
-      }
-    } catch (error) {
-      toast.error("Transaction failed. Try again later.", {
-        id: PuzzletoastId,
-      });
-    }
-  };
-  return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        {activeTab === "Upcoming" ? (
-          <Button variant="outline" size="sm">
-            Details
-          </Button>
-        ) : (
-          <Badge className="cursor-pointer" variant={"noEffect"}>
-            Details
-          </Badge>
-        )}
-      </DialogTrigger>
-      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>Public Parameters</DialogTitle>
-          <DialogDescription>Vote ID: {marketId}</DialogDescription>
-        </DialogHeader>
-        <InputGroup>
-          <InputGroupAddon align="inline-start">
-            <Label
-              htmlFor="public-parameters-contract-address"
-              className="flex flex-wrap gap-x-2 items-center justify-center cursor-pointer text-foreground"
-            >
-              <Badge variant="noEffect">Contract</Badge>
-              <Link
-                href={`https://hashscan.io/testnet/contract/${contractAddress}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <span className="text-foreground hover:underline">
-                  {contractAddress}
-                </span>
-              </Link>
-            </Label>
-          </InputGroupAddon>
-        </InputGroup>
-        <InputGroup>
-          <InputGroupTextarea
-            readOnly={true}
-            disabled={true}
-            value={N}
-            id="public-parameters-n"
-            className="text-intputs resize-none break-all text-xs font-mono !cursor-text max-h-8 md:max-h-16 overflow-y-scroll "
-          />
-          <InputGroupAddon align="block-start">
-            <Label htmlFor="public-parameters-n" className="text-foreground">
-              Modulus (N)
-            </Label>
-          </InputGroupAddon>
-        </InputGroup>
-        <div className="w-full flex flex-col md:flex-row gap-x-2 gap-y-2">
-          <InputGroup>
-            <InputGroupInput
-              readOnly={true}
-              disabled={true}
-              value={a.toString()}
-              id="public-parameters-a"
-              className="resize-none break-all text-xs font-mono !cursor-text"
-            />
-            <InputGroupAddon align="block-start">
-              <Label htmlFor="public-parameters-a" className="text-foreground">
-                Base (a)
-              </Label>
-            </InputGroupAddon>
-          </InputGroup>
-          <InputGroup>
-            <InputGroupInput
-              readOnly={true}
-              disabled={true}
-              value={t}
-              id="public-parameters-t"
-              className="resize-none break-all text-xs font-mono !cursor-text"
-            />
-            <InputGroupAddon align="block-start">
-              <Label htmlFor="public-parameters-t" className="text-foreground">
-                Time (t)
-              </Label>
-            </InputGroupAddon>
-          </InputGroup>
-        </div>
-        <InputGroup>
-          <InputGroupTextarea
-            readOnly={true}
-            disabled={true}
-            value={skLocked}
-            id="public-parameters-sk"
-            className="resize-none break-all text-xs font-mono !cursor-text"
-          />
-          <InputGroupAddon align="block-start">
-            <Label htmlFor="public-parameters-sk" className="text-foreground">
-              Encrypted SecretKey
-            </Label>
-          </InputGroupAddon>
-        </InputGroup>
-        {solver === "0x0000000000000000000000000000000000000000" ? (
-          <>
-            <InputGroup>
-              <InputGroupInput
-                value={sk_Recovered ?? ""}
-                onChange={(e) => {
-                  setSkRecovered(e.target.value as `0x${string}`);
-                }}
-                disabled={isVerified}
-                id="public-parameters-soln"
-                placeholder="Enter computed puzzle solution"
-                className="resize-none break-all text-xs font-mono !cursor-text"
-              />
-              <InputGroupAddon align="block-start">
-                <Label
-                  htmlFor="public-parameters-soln"
-                  className="text-foreground"
-                >
-                  Secret Key (SK)
-                </Label>
-              </InputGroupAddon>
-            </InputGroup>
-            <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
-              <DialogClose asChild>
-                <Button variant="outline">Close</Button>
-              </DialogClose>
-              <div className="flex justify-center items-center gap-2 flex-wrap">
-                <Button
-                  type="button"
-                  disabled={!sk_Recovered || isVerified}
-                  onClick={verifyPuzzle}
-                >
-                  {isVerified ? "Verified" : "Verify"}
-                </Button>
-                <Button
-                  type="submit"
-                  onClick={submitPuzzleSolution}
-                  disabled={!isVerified || submitBtnClicked}
-                >
-                  {submitBtnClicked ? (
-                    <>
-                      <Spinner /> Submitting...
-                    </>
-                  ) : (
-                    "Submit"
-                  )}
-                </Button>
-              </div>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <InputGroup>
-              <InputGroupTextarea
-                readOnly={true}
-                disabled={true}
-                value={unlockedSecret}
-                id="public-parameters-sk"
-                className="resize-none break-all text-xs font-mono !cursor-text"
-              />
-              <InputGroupAddon align="block-start">
-                <Label
-                  htmlFor="public-parameters-sk"
-                  className="text-foreground"
-                >
-                  Secret Key (SK)
-                </Label>
-              </InputGroupAddon>
-            </InputGroup>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-};
+//   const verifyPuzzle = () => {
+//     setBtnClicked(true);
+//     if (!sk_Recovered) return;
+//     const userKeccakhash = keccak256(sk_Recovered);
+//     if (userKeccakhash === hashedSK) {
+//       setIsVerified(true);
+//     } else {
+//       setIsVerified(false);
+//     }
+//   };
+//   const submitPuzzleSolution = async () => {
+//     setSubmitBtnClicked(true);
+//     const toastId = toast.loading("Submitting Puzzle Solution...", {
+//       duration: 10000,
+//     });
+//     setPuzzletoastId(toastId);
+//     try {
+//       const txHash = await writeContractAsync({
+//         address: contractAddress as `0x${string}`,
+//         abi: CREATEVOTE_ABI,
+//         functionName: "verifySecret",
+//         args: [sk_Recovered],
+//       });
+//       setTxHash(txHash);
+//       toast.loading("Transaction Submitted...", {
+//         id: PuzzletoastId,
+//         duration: 10000,
+//         action: {
+//           label: "View on Explorer",
+//           onClick: () => {
+//             window.open(
+//               `https://hashscan.io/testnet/transaction/${txHash}`,
+//               "_blank"
+//             );
+//           },
+//         },
+//       });
+//       if (isConfirmed || isError) {
+//         setSubmitBtnClicked(false);
+//         setBtnClicked(false);
+//         setDialogOpen(false);
+//       }
+//     } catch (error) {
+//       toast.error("Transaction failed. Try again later.", {
+//         id: PuzzletoastId,
+//       });
+//     }
+//   };
+//   return (
+//     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+//       <DialogTrigger asChild>
+//         {activeTab === "Upcoming" ? (
+//           <Button variant="outline" size="sm">
+//             Details
+//           </Button>
+//         ) : (
+//           <Badge className="cursor-pointer" variant={"noEffect"}>
+//             Details
+//           </Badge>
+//         )}
+//       </DialogTrigger>
+//       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+//         <DialogHeader>
+//           <DialogTitle>Public Parameters</DialogTitle>
+//           <DialogDescription>Vote ID: {marketId}</DialogDescription>
+//         </DialogHeader>
+//         <InputGroup>
+//           <InputGroupAddon align="inline-start">
+//             <Label
+//               htmlFor="public-parameters-contract-address"
+//               className="flex flex-wrap gap-x-2 items-center justify-center cursor-pointer text-foreground"
+//             >
+//               <Badge variant="noEffect">Contract</Badge>
+//               <Link
+//                 href={`https://hashscan.io/testnet/contract/${contractAddress}`}
+//                 target="_blank"
+//                 rel="noopener noreferrer"
+//               >
+//                 <span className="text-foreground hover:underline">
+//                   {contractAddress}
+//                 </span>
+//               </Link>
+//             </Label>
+//           </InputGroupAddon>
+//         </InputGroup>
+//         <InputGroup>
+//           <InputGroupTextarea
+//             readOnly={true}
+//             disabled={true}
+//             value={N}
+//             id="public-parameters-n"
+//             className="text-intputs resize-none break-all text-xs font-mono !cursor-text max-h-8 md:max-h-16 overflow-y-scroll "
+//           />
+//           <InputGroupAddon align="block-start">
+//             <Label htmlFor="public-parameters-n" className="text-foreground">
+//               Modulus (N)
+//             </Label>
+//           </InputGroupAddon>
+//         </InputGroup>
+//         <div className="w-full flex flex-col md:flex-row gap-x-2 gap-y-2">
+//           <InputGroup>
+//             <InputGroupInput
+//               readOnly={true}
+//               disabled={true}
+//               value={a.toString()}
+//               id="public-parameters-a"
+//               className="resize-none break-all text-xs font-mono !cursor-text"
+//             />
+//             <InputGroupAddon align="block-start">
+//               <Label htmlFor="public-parameters-a" className="text-foreground">
+//                 Base (a)
+//               </Label>
+//             </InputGroupAddon>
+//           </InputGroup>
+//           <InputGroup>
+//             <InputGroupInput
+//               readOnly={true}
+//               disabled={true}
+//               value={t}
+//               id="public-parameters-t"
+//               className="resize-none break-all text-xs font-mono !cursor-text"
+//             />
+//             <InputGroupAddon align="block-start">
+//               <Label htmlFor="public-parameters-t" className="text-foreground">
+//                 Time (t)
+//               </Label>
+//             </InputGroupAddon>
+//           </InputGroup>
+//         </div>
+//         <InputGroup>
+//           <InputGroupTextarea
+//             readOnly={true}
+//             disabled={true}
+//             value={skLocked}
+//             id="public-parameters-sk"
+//             className="resize-none break-all text-xs font-mono !cursor-text"
+//           />
+//           <InputGroupAddon align="block-start">
+//             <Label htmlFor="public-parameters-sk" className="text-foreground">
+//               Encrypted SecretKey
+//             </Label>
+//           </InputGroupAddon>
+//         </InputGroup>
+//         {solver === "0x0000000000000000000000000000000000000000" ? (
+//           <>
+//             <InputGroup>
+//               <InputGroupInput
+//                 value={sk_Recovered ?? ""}
+//                 onChange={(e) => {
+//                   setSkRecovered(e.target.value as `0x${string}`);
+//                 }}
+//                 disabled={isVerified}
+//                 id="public-parameters-soln"
+//                 placeholder="Enter computed puzzle solution"
+//                 className="resize-none break-all text-xs font-mono !cursor-text"
+//               />
+//               <InputGroupAddon align="block-start">
+//                 <Label
+//                   htmlFor="public-parameters-soln"
+//                   className="text-foreground"
+//                 >
+//                   Secret Key (SK)
+//                 </Label>
+//               </InputGroupAddon>
+//             </InputGroup>
+//             <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
+//               <DialogClose asChild>
+//                 <Button variant="outline">Close</Button>
+//               </DialogClose>
+//               <div className="flex justify-center items-center gap-2 flex-wrap">
+//                 <Button
+//                   type="button"
+//                   disabled={!sk_Recovered || isVerified}
+//                   onClick={verifyPuzzle}
+//                 >
+//                   {isVerified ? "Verified" : "Verify"}
+//                 </Button>
+//                 <Button
+//                   type="submit"
+//                   onClick={submitPuzzleSolution}
+//                   disabled={!isVerified || submitBtnClicked}
+//                 >
+//                   {submitBtnClicked ? (
+//                     <>
+//                       <Spinner /> Submitting...
+//                     </>
+//                   ) : (
+//                     "Submit"
+//                   )}
+//                 </Button>
+//               </div>
+//             </DialogFooter>
+//           </>
+//         ) : (
+//           <>
+//             <InputGroup>
+//               <InputGroupTextarea
+//                 readOnly={true}
+//                 disabled={true}
+//                 value={unlockedSecret}
+//                 id="public-parameters-sk"
+//                 className="resize-none break-all text-xs font-mono !cursor-text"
+//               />
+//               <InputGroupAddon align="block-start">
+//                 <Label
+//                   htmlFor="public-parameters-sk"
+//                   className="text-foreground"
+//                 >
+//                   Secret Key (SK)
+//                 </Label>
+//               </InputGroupAddon>
+//             </InputGroup>
+//           </>
+//         )}
+//       </DialogContent>
+//     </Dialog>
+//   );
+// };
 
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { FaMinus, FaPlus } from "react-icons/fa6";
-import { RainbowkitConfig } from "@/utils/RainbowkitConfig";
-import { useChainId } from "wagmi";
-import { encrypt } from "@/actions/encryptVote";
-import { verifyVoteSignature } from "@/app/actions/verification";
-import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
-import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
-import Link from "next/link";
+// import {
+//   Card,
+//   CardAction,
+//   CardContent,
+//   CardDescription,
+//   CardFooter,
+//   CardHeader,
+//   CardTitle,
+// } from "@/components/ui/card";
+// import { Input } from "@/components/ui/input";
+// import { FaMinus, FaPlus } from "react-icons/fa6";
+// import { RainbowkitConfig } from "@/utils/RainbowkitConfig";
+// import { useChainId } from "wagmi";
+// import { encrypt } from "@/actions/encryptVote";
+// import { verifyVoteSignature } from "@/app/actions/verification";
+// import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
+// import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
+// import Link from "next/link";
 
-interface CastVoteArgs {
-  userPublicKey: bigint;
-  option: string | null;
-  amount: bigint;
-}
-export const VoteActionDialog = ({
-  option,
-  contractAddress,
-  marketId,
-  rewards,
-  publicKey,
-  optionValue,
-}: {
-  option: string;
-  contractAddress: string;
-  marketId: string;
-  rewards: string;
-  publicKey: string;
-  optionValue: string;
-}) => {
-  const chainId = useChainId();
-  const { signTypedDataAsync } = useSignTypedData();
-  const { writeContractAsync } = useWriteContract();
-  const [amount, setAmount] = useState<number>(0);
-  const { address } = useAccount();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [isGenerateBtnClicked, setIsGenerateBtnClicked] = useState(false);
-  const [isSubmitBtnClicked, setIsSubmitBtnClicked] = useState(false);
-  const [isAnyBtnClicked, setIsAnyBtnClicked] = useState(false);
-  const [toastId, setToastId] = useState<string | number>();
-  const [toastId2, setToastId2] = useState<string | number>();
-  const [args, setArgs] = useState<CastVoteArgs>({
-    userPublicKey: BigInt(0),
-    option: null,
-    amount: BigInt(0),
-  });
-  const [typedSig, setTypedSig] = useState<`0x${string}` | null>(null);
-  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
-  const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
-    query: {
-      enabled: !!txHash,
-    },
-  });
-  const { fetchBalance: fetchNativeBalance } = useNativeBalanceStore();
-  const { balance: stakedTokenBalance, fetchBalance: fetchTokenBalance } =
-    useTokenBalanceStore();
-  useEffect(() => {
-    const updateData = async () => {
-      if (isConfirmed === false && isError === false) return;
-      if (isError) {
-        toast.error("Transaction failed", {
-          duration: 3500,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/transaction/${txHash}`,
-                "_blank"
-              );
-            },
-          },
-        });
-        setDialogOpen(false);
-        setIsGenerateBtnClicked(false);
-        setIsSubmitBtnClicked(false);
-        setIsAnyBtnClicked(false);
-        setAmount(0);
-        setArgs({
-          userPublicKey: BigInt(0),
-          option: null,
-          amount: BigInt(0),
-        });
-        setTypedSig(null);
-        setTxHash(null);
-        toast.dismiss(toastId);
-        toast.dismiss(toastId2);
-      }
-      if (isConfirmed) {
-        toast.success("Transaction Successful", {
-          duration: 3500,
-          action: {
-            label: "View on Explorer",
-            onClick: () => {
-              window.open(
-                `https://hashscan.io/testnet/transaction/${txHash}`,
-                "_blank"
-              );
-            },
-          },
-        });
-        setDialogOpen(false);
-        setIsGenerateBtnClicked(false);
-        setIsSubmitBtnClicked(false);
-        setIsAnyBtnClicked(false);
-        setAmount(0);
-        setArgs({
-          userPublicKey: BigInt(0),
-          option: null,
-          amount: BigInt(0),
-        });
-        setTypedSig(null);
-        setTxHash(null);
-        toast.dismiss(toastId);
-        toast.dismiss(toastId2);
-      }
+// interface CastVoteArgs {
+//   userPublicKey: bigint;
+//   option: string | null;
+//   amount: bigint;
+// }
+// export const VoteActionDialog = ({
+//   option,
+//   contractAddress,
+//   marketId,
+//   rewards,
+//   publicKey,
+//   optionValue,
+// }: {
+//   option: string;
+//   contractAddress: string;
+//   marketId: string;
+//   rewards: string;
+//   publicKey: string;
+//   optionValue: string;
+// }) => {
+//   const chainId = useChainId();
+//   const { signTypedDataAsync } = useSignTypedData();
+//   const { writeContractAsync } = useWriteContract();
+//   const [amount, setAmount] = useState<number>(0);
+//   const { address } = useAccount();
+//   const [dialogOpen, setDialogOpen] = useState(false);
+//   const [isGenerateBtnClicked, setIsGenerateBtnClicked] = useState(false);
+//   const [isSubmitBtnClicked, setIsSubmitBtnClicked] = useState(false);
+//   const [isAnyBtnClicked, setIsAnyBtnClicked] = useState(false);
+//   const [toastId, setToastId] = useState<string | number>();
+//   const [toastId2, setToastId2] = useState<string | number>();
+//   const [args, setArgs] = useState<CastVoteArgs>({
+//     userPublicKey: BigInt(0),
+//     option: null,
+//     amount: BigInt(0),
+//   });
+//   const [typedSig, setTypedSig] = useState<`0x${string}` | null>(null);
+//   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
+//   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
+//     hash: txHash as `0x${string}`,
+//     query: {
+//       enabled: !!txHash,
+//     },
+//   });
+//   const { fetchBalance: fetchNativeBalance } = useNativeBalanceStore();
+//   const { balance: stakedTokenBalance, fetchBalance: fetchTokenBalance } =
+//     useTokenBalanceStore();
+//   useEffect(() => {
+//     const updateData = async () => {
+//       if (isConfirmed === false && isError === false) return;
+//       if (isError) {
+//         toast.error("Transaction failed", {
+//           duration: 3500,
+//           action: {
+//             label: "View on Explorer",
+//             onClick: () => {
+//               window.open(
+//                 `https://hashscan.io/testnet/transaction/${txHash}`,
+//                 "_blank"
+//               );
+//             },
+//           },
+//         });
+//         setDialogOpen(false);
+//         setIsGenerateBtnClicked(false);
+//         setIsSubmitBtnClicked(false);
+//         setIsAnyBtnClicked(false);
+//         setAmount(0);
+//         setArgs({
+//           userPublicKey: BigInt(0),
+//           option: null,
+//           amount: BigInt(0),
+//         });
+//         setTypedSig(null);
+//         setTxHash(null);
+//         toast.dismiss(toastId);
+//         toast.dismiss(toastId2);
+//       }
+//       if (isConfirmed) {
+//         toast.success("Transaction Successful", {
+//           duration: 3500,
+//           action: {
+//             label: "View on Explorer",
+//             onClick: () => {
+//               window.open(
+//                 `https://hashscan.io/testnet/transaction/${txHash}`,
+//                 "_blank"
+//               );
+//             },
+//           },
+//         });
+//         setDialogOpen(false);
+//         setIsGenerateBtnClicked(false);
+//         setIsSubmitBtnClicked(false);
+//         setIsAnyBtnClicked(false);
+//         setAmount(0);
+//         setArgs({
+//           userPublicKey: BigInt(0),
+//           option: null,
+//           amount: BigInt(0),
+//         });
+//         setTypedSig(null);
+//         setTxHash(null);
+//         toast.dismiss(toastId);
+//         toast.dismiss(toastId2);
+//       }
 
-      fetchNativeBalance();
-      fetchTokenBalance();
-    };
-    updateData();
-  }, [isConfirmed, txHash, isError]);
+//       fetchNativeBalance();
+//       fetchTokenBalance();
+//     };
+//     updateData();
+//   }, [isConfirmed, txHash, isError]);
 
-  const generateVote = async () => {
-    setIsGenerateBtnClicked(true);
-    setIsAnyBtnClicked(true);
-    const sig = await signTypedDataAsync({
-      domain: {
-        name: "HashX",
-        version: "1",
-        chainId,
-        verifyingContract: contractAddress as `0x${string}`,
-      },
-      types: {
-        Vote: [
-          { name: "marketId", type: "uint256" },
-          { name: "option", type: "string" },
-          { name: "amount", type: "uint256" },
-        ],
-      },
-      primaryType: "Vote",
-      message: {
-        marketId: BigInt(marketId),
-        option,
-        amount: BigInt(amount),
-      },
-    });
-    const ok = await verifyVoteSignature({
-      signature: sig as `0x${string}`,
-      expectedSigner: address as `0x${string}`,
-      contractAddress: contractAddress as `0x${string}`,
-      chainId,
-      marketId: BigInt(marketId),
-      option,
-      amount: BigInt(amount),
-    });
+//   const generateVote = async () => {
+//     setIsGenerateBtnClicked(true);
+//     setIsAnyBtnClicked(true);
+//     const sig = await signTypedDataAsync({
+//       domain: {
+//         name: "HashX",
+//         version: "1",
+//         chainId,
+//         verifyingContract: contractAddress as `0x${string}`,
+//       },
+//       types: {
+//         Vote: [
+//           { name: "marketId", type: "uint256" },
+//           { name: "option", type: "string" },
+//           { name: "amount", type: "uint256" },
+//         ],
+//       },
+//       primaryType: "Vote",
+//       message: {
+//         marketId: BigInt(marketId),
+//         option,
+//         amount: BigInt(amount),
+//       },
+//     });
+//     const ok = await verifyVoteSignature({
+//       signature: sig as `0x${string}`,
+//       expectedSigner: address as `0x${string}`,
+//       contractAddress: contractAddress as `0x${string}`,
+//       chainId,
+//       marketId: BigInt(marketId),
+//       option,
+//       amount: BigInt(amount),
+//     });
 
-    if (!ok) {
-      setIsGenerateBtnClicked(false);
-      toast.error("Signature verification failed");
-      return;
-    }
-    toast.success("Signature verified");
-    setTypedSig(sig as `0x${string}`);
-    const { encryptedVote, userPublicKey } = await encrypt({
-      sig: sig as `0x${string}`,
-      optionValue: optionValue,
-      publicKey: publicKey,
-    });
-    setArgs((prev) => ({
-      ...prev,
-      amount: BigInt(amount * 1e8),
-      option: encryptedVote,
-      userPublicKey: userPublicKey,
-    }));
-    setIsGenerateBtnClicked(false);
-  };
+//     if (!ok) {
+//       setIsGenerateBtnClicked(false);
+//       toast.error("Signature verification failed");
+//       return;
+//     }
+//     toast.success("Signature verified");
+//     setTypedSig(sig as `0x${string}`);
+//     const { encryptedVote, userPublicKey } = await encrypt({
+//       sig: sig as `0x${string}`,
+//       optionValue: optionValue,
+//       publicKey: publicKey,
+//     });
+//     setArgs((prev) => ({
+//       ...prev,
+//       amount: BigInt(amount * 1e8),
+//       option: encryptedVote,
+//       userPublicKey: userPublicKey,
+//     }));
+//     setIsGenerateBtnClicked(false);
+//   };
 
-  const maxTokens = Number(stakedTokenBalance);
+//   const maxTokens = Number(stakedTokenBalance);
 
-  const submitVote = async () => {
-    setIsSubmitBtnClicked(true);
-    const toastId = toast.loading("Submitting vote...", { duration: 3500 });
-    setToastId(toastId);
+//   const submitVote = async () => {
+//     setIsSubmitBtnClicked(true);
+//     const toastId = toast.loading("Submitting vote...", { duration: 3500 });
+//     setToastId(toastId);
 
-    try {
-      const txHash = await writeContractAsync({
-        address: contractAddress as `0x${string}`,
-        abi: CREATEVOTE_ABI,
-        functionName: "castVote",
-        args: [args.userPublicKey, args.option, args.amount],
-      });
-      setTxHash(txHash);
-      const toastId2 = toast.loading("Transaction confirming...", {
-        duration: 10000,
-        action: {
-          label: "View on Explorer",
-          onClick: () => {
-            window.open(
-              `https://hashscan.io/testnet/transaction/${txHash}`,
-              "_blank"
-            );
-          },
-        },
-      });
-      setToastId2(toastId2);
-    } catch (error) {
-      toast.error("Transaction failed. Try again later.", {
-        id: toastId,
-      });
-    } finally {
-      setIsSubmitBtnClicked(false);
-      setDialogOpen(false);
-      setTypedSig(null);
-      setIsAnyBtnClicked(false);
-      setArgs({
-        userPublicKey: BigInt(0),
-        option: null,
-        amount: BigInt(0),
-      });
-    }
-  };
+//     try {
+//       const txHash = await writeContractAsync({
+//         address: contractAddress as `0x${string}`,
+//         abi: CREATEVOTE_ABI,
+//         functionName: "castVote",
+//         args: [args.userPublicKey, args.option, args.amount],
+//       });
+//       setTxHash(txHash);
+//       const toastId2 = toast.loading("Transaction confirming...", {
+//         duration: 10000,
+//         action: {
+//           label: "View on Explorer",
+//           onClick: () => {
+//             window.open(
+//               `https://hashscan.io/testnet/transaction/${txHash}`,
+//               "_blank"
+//             );
+//           },
+//         },
+//       });
+//       setToastId2(toastId2);
+//     } catch (error) {
+//       toast.error("Transaction failed. Try again later.", {
+//         id: toastId,
+//       });
+//     } finally {
+//       setIsSubmitBtnClicked(false);
+//       setDialogOpen(false);
+//       setTypedSig(null);
+//       setIsAnyBtnClicked(false);
+//       setArgs({
+//         userPublicKey: BigInt(0),
+//         option: null,
+//         amount: BigInt(0),
+//       });
+//     }
+//   };
 
-  return (
-    <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm">
-            <p className="tracking-wide">{option}</p>
-          </Button>
-        </DialogTrigger>
-        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>Submit &#8220;{option}&#8221; Vote</DialogTitle>
-            <DialogDescription>Vote ID: {marketId}</DialogDescription>
-          </DialogHeader>
+//   return (
+//     <>
+//       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+//         <DialogTrigger asChild>
+//           <Button variant="outline" size="sm">
+//             <p className="tracking-wide">{option}</p>
+//           </Button>
+//         </DialogTrigger>
+//         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+//           <DialogHeader>
+//             <DialogTitle>Submit &#8220;{option}&#8221; Vote</DialogTitle>
+//             <DialogDescription>Vote ID: {marketId}</DialogDescription>
+//           </DialogHeader>
 
-          <Card className="w-full bg-background rounded-md">
-            <CardHeader>
-              <CardTitle>
-                Total Reward in &#8463;: {Number(BigInt(rewards) / BigInt(1e8))}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Voting Rewards will be distributed in proportion voters balance.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Input
-                type="number"
-                placeholder="Amount"
-                disabled={isAnyBtnClicked}
-                value={amount > 0 ? amount : ""}
-                onChange={(e) => {
-                  setAmount(Number(e.target.value));
-                }}
-              />
-            </CardContent>
-            <CardFooter className="flex flex-col items-center justify-center gap-y-5">
-              <CardAction className="w-full flex flex-row items-center justify-center gap-x-2">
-                <Button
-                  variant={"outline"}
-                  onClick={() => {
-                    setAmount(amount - 10);
-                  }}
-                  disabled={amount - 10 < 0 || isAnyBtnClicked}
-                >
-                  <FaMinus />
-                </Button>
-                <Button
-                  variant={"outline"}
-                  disabled={isAnyBtnClicked}
-                  onClick={() => {
-                    setAmount(maxTokens);
-                  }}
-                >
-                  Maximum
-                </Button>
-                <Button
-                  variant={"outline"}
-                  onClick={() => {
-                    setAmount(amount + 10);
-                  }}
-                  disabled={amount + 10 > maxTokens || isAnyBtnClicked}
-                >
-                  <FaPlus />
-                </Button>
-              </CardAction>
-            </CardFooter>
-          </Card>
+//           <Card className="w-full bg-background rounded-md">
+//             <CardHeader>
+//               <CardTitle>
+//                 Total Reward in &#8463;: {Number(BigInt(rewards) / BigInt(1e8))}
+//               </CardTitle>
+//               <CardDescription className="text-xs">
+//                 Voting Rewards will be distributed in proportion voters balance.
+//               </CardDescription>
+//             </CardHeader>
+//             <CardContent>
+//               <Input
+//                 type="number"
+//                 placeholder="Amount"
+//                 disabled={isAnyBtnClicked}
+//                 value={amount > 0 ? amount : ""}
+//                 onChange={(e) => {
+//                   setAmount(Number(e.target.value));
+//                 }}
+//               />
+//             </CardContent>
+//             <CardFooter className="flex flex-col items-center justify-center gap-y-5">
+//               <CardAction className="w-full flex flex-row items-center justify-center gap-x-2">
+//                 <Button
+//                   variant={"outline"}
+//                   onClick={() => {
+//                     setAmount(amount - 10);
+//                   }}
+//                   disabled={amount - 10 < 0 || isAnyBtnClicked}
+//                 >
+//                   <FaMinus />
+//                 </Button>
+//                 <Button
+//                   variant={"outline"}
+//                   disabled={isAnyBtnClicked}
+//                   onClick={() => {
+//                     setAmount(maxTokens);
+//                   }}
+//                 >
+//                   Maximum
+//                 </Button>
+//                 <Button
+//                   variant={"outline"}
+//                   onClick={() => {
+//                     setAmount(amount + 10);
+//                   }}
+//                   disabled={amount + 10 > maxTokens || isAnyBtnClicked}
+//                 >
+//                   <FaPlus />
+//                 </Button>
+//               </CardAction>
+//             </CardFooter>
+//           </Card>
 
-          <DialogFooter className="flex flex-row items-center !justify-between gap-x-2">
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            {!typedSig ? (
-              <Button
-                onClick={generateVote}
-                disabled={
-                  isGenerateBtnClicked || isSubmitBtnClicked || amount <= 0
-                }
-                className="transition-all duration-300"
-              >
-                {isGenerateBtnClicked ? (
-                  <>
-                    <Spinner />
-                    Generating...
-                  </>
-                ) : (
-                  "Generate Signature"
-                )}
-              </Button>
-            ) : (
-              <Button
-                onClick={submitVote}
-                disabled={isSubmitBtnClicked || amount <= 0}
-                className="transition-all duration-300"
-              >
-                {isSubmitBtnClicked ? (
-                  <>
-                    <Spinner />
-                    Submitting...
-                  </>
-                ) : (
-                  "Submit Vote"
-                )}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-};
+//           <DialogFooter className="flex flex-row items-center !justify-between gap-x-2">
+//             <DialogClose asChild>
+//               <Button variant="outline">Cancel</Button>
+//             </DialogClose>
+//             {!typedSig ? (
+//               <Button
+//                 onClick={generateVote}
+//                 disabled={
+//                   isGenerateBtnClicked || isSubmitBtnClicked || amount <= 0
+//                 }
+//                 className="transition-all duration-300"
+//               >
+//                 {isGenerateBtnClicked ? (
+//                   <>
+//                     <Spinner />
+//                     Generating...
+//                   </>
+//                 ) : (
+//                   "Generate Signature"
+//                 )}
+//               </Button>
+//             ) : (
+//               <Button
+//                 onClick={submitVote}
+//                 disabled={isSubmitBtnClicked || amount <= 0}
+//                 className="transition-all duration-300"
+//               >
+//                 {isSubmitBtnClicked ? (
+//                   <>
+//                     <Spinner />
+//                     Submitting...
+//                   </>
+//                 ) : (
+//                   "Submit Vote"
+//                 )}
+//               </Button>
+//             )}
+//           </DialogFooter>
+//         </DialogContent>
+//       </Dialog>
+//     </>
+//   );
+// };

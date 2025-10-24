@@ -1,4 +1,4 @@
-"use client";
+"use server";
 import { packPoint, unpackPoint, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import crypto from "crypto";
 export const encrypt = async ({
@@ -64,7 +64,7 @@ export const encryptVote = async (
   };
 };
 
-export const encryptData = (
+export const encryptData = async (
   data: string,
   privateKey: bigint,
   voterPublicKey: bigint,

@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { keccak256, toHex } from "viem";
 import { createTimeLockPuzzle } from "./timelock";
 import { addSecrets } from "./db-actions";
-import type { secretParamsT } from "./db-actions";
+import type { secretParamsT } from "./types";
 
 export const generateKeyPair = async (
   server: boolean,
