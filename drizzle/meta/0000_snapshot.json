@@ -1,9 +1,46 @@
 {
-  "id": "f91069b0-67b4-46ed-abfd-3cda057c4c88",
+  "id": "43aa15be-b4aa-4d9a-8a66-d4a9b385d65c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.proofs": {
+      "name": "proofs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_address": {
+          "name": "user_address",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_address": {
+          "name": "contract_address",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merkle_proofs": {
+          "name": "merkle_proofs",
+          "type": "varchar(150)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.secrets": {
       "name": "secrets",
       "schema": "",
@@ -104,6 +141,57 @@
           "type": "bigint",
           "primaryKey": false,
           "notNull": false
+        },
+        "solver": {
+          "name": "solver",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "unlocked_secret": {
+          "name": "unlocked_secret",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_option": {
+          "name": "resolved_option",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "user_address": {
+          "name": "user_address",
+          "type": "varchar(80)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "voted": {
+          "name": "voted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "claimed": {
+          "name": "claimed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},

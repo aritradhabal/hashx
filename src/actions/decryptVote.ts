@@ -2,25 +2,25 @@
 import { unpackPoint, mulPointEscalar } from "@zk-kit/baby-jubjub";
 import crypto from "crypto";
 
-export const decryptVote = (
+export const decryptVote = async (
   encryptedVote: string,
   voterPublicKey: bigint,
-  privateKey: bigint
-) => {
-  const decryptedVote = decryptData(
+  secretKey: string
+): Promise<string> => {
+  const SecretKeyBigInt = BigInt(secretKey);
+  const decryptedVote = await decryptData(
     encryptedVote,
-    BigInt(privateKey),
+    SecretKeyBigInt,
     BigInt(voterPublicKey)
   );
-
   return decryptedVote;
 };
 
-export const decryptData = (
+export const decryptData = async (
   encryptedData: string,
   privateKey: bigint,
   trustedPartyPublicKey: bigint
-) => {
+): Promise<string> => {
   const unpackedKey = unpackPoint(trustedPartyPublicKey);
   if (!unpackedKey) {
     throw new Error("Invalid key");

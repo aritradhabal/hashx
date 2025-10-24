@@ -385,6 +385,25 @@ export const VoteCard = ({
             Claim Rewards
           </Button>
         )}
+        {activeTab === "Upcoming" && (
+          <DetailsDialog
+            marketId={marketId}
+            N={N}
+            t={t}
+            a={a}
+            skLocked={skLocked}
+            publicKey={publicKey}
+            server={server}
+            hashedSK={hashedSK}
+            contractAddress={contractAddress}
+            solver={solver}
+            unlockedSecret={unlockedSecret}
+            setOngoing={setOngoing}
+            setResolved={setResolved}
+            setUpcoming={setUpcoming}
+            activeTab={activeTab}
+          />
+        )}
       </ItemActions>
       {showBadges && (
         <ItemFooter className="flex flex-row flex-wrap gap-x-2 gap-y-2 justify-between items-center">
@@ -422,22 +441,25 @@ export const VoteCard = ({
             </Badge>
           </div>
           <div className="flex flex-row gap-x-3 items-center justify-center flex-wrap">
-            <DetailsDialog
-              marketId={marketId}
-              N={N}
-              t={t}
-              a={a}
-              skLocked={skLocked}
-              publicKey={publicKey}
-              server={server}
-              hashedSK={hashedSK}
-              contractAddress={contractAddress}
-              solver={solver}
-              unlockedSecret={unlockedSecret}
-              setOngoing={setOngoing}
-              setResolved={setResolved}
-              setUpcoming={setUpcoming}
-            />
+            {activeTab !== "Upcoming" && (
+              <DetailsDialog
+                marketId={marketId}
+                N={N}
+                t={t}
+                a={a}
+                skLocked={skLocked}
+                publicKey={publicKey}
+                server={server}
+                hashedSK={hashedSK}
+                contractAddress={contractAddress}
+                solver={solver}
+                unlockedSecret={unlockedSecret}
+                setOngoing={setOngoing}
+                setResolved={setResolved}
+                setUpcoming={setUpcoming}
+                activeTab={activeTab}
+              />
+            )}
 
             {(activeTab === "Ongoing" || activeTab === "Upcoming") && (
               <Badge variant={"noEffect"}>
@@ -473,6 +495,7 @@ export const DetailsDialog = ({
   setOngoing,
   setResolved,
   setUpcoming,
+  activeTab,
 }: {
   N: string;
   t: string;
@@ -488,6 +511,7 @@ export const DetailsDialog = ({
   setOngoing: (votes: VoteCardData[]) => void;
   setResolved: (votes: VoteCardData[]) => void;
   setUpcoming: (votes: VoteCardData[]) => void;
+  activeTab: TabValue;
 }) => {
   const router = useRouter();
   const { writeContractAsync } = useWriteContract();
@@ -589,10 +613,16 @@ export const DetailsDialog = ({
   };
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger>
-        <Badge className="cursor-pointer" variant={"noEffect"}>
-          Details
-        </Badge>
+      <DialogTrigger asChild>
+        {activeTab === "Upcoming" ? (
+          <Button variant="outline" size="sm">
+            Details
+          </Button>
+        ) : (
+          <Badge className="cursor-pointer" variant={"noEffect"}>
+            Details
+          </Badge>
+        )}
       </DialogTrigger>
       <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>

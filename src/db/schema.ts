@@ -4,8 +4,10 @@ import {
   varchar,
   bigint,
   integer,
+  jsonb,
   boolean,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const secrets = pgTable("secrets", {
   marketId: bigint("market_id", { mode: "bigint" }).notNull().primaryKey(),
@@ -31,17 +33,15 @@ export const secrets = pgTable("secrets", {
 });
 
 export const users = pgTable("users", {
-  address: varchar("user_address", { length: 80 }).notNull().primaryKey(),
-  publicKey: varchar("public_key", { length: 80 }).notNull(),
-  option: bigint("option", { mode: "bigint" }),
+  userAddress: varchar("user_address", { length: 80 }).notNull().primaryKey(),
+  voted: boolean("voted").notNull().default(false),
+  claimed: boolean("claimed").notNull().default(false),
 });
 
-export const userMarkets = pgTable("user_markets", {
+export const proofs = pgTable("proofs", {
   id: serial("id").primaryKey(),
   userAddress: varchar("user_address", { length: 80 })
-    .notNull()
-    .references(() => users.address, { onDelete: "cascade" }),
-  marketId: bigint("market_id", { mode: "bigint" }).notNull(),
-  voted: boolean("voted").notNull().default(false),
-  option: bigint("option", { mode: "bigint" }).notNull(),
+    .notNull(),
+  contractAddress: varchar("contract_address", { length: 80 }).notNull(),
+  merkleProofs: varchar("merkle_proofs", { length: 150 }).notNull(),
 });

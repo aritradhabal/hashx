@@ -2,6 +2,7 @@
 import { db } from "@/db/index";
 import { secrets } from "@/db/schema";
 import {
+  CREATEVOTE_ABI,
   CREATEVOTE_FACTORY_ADDRESS,
   HBAR_LOCKING_CONTRACT_ADDRESS,
 } from "@/constants";
@@ -19,6 +20,9 @@ import {
   Hex,
   Address,
 } from "viem";
+import { decryptVote } from "./decryptVote";
+import { buildWinnerLoserMerkles } from "./merkletree";
+import { walletClient } from "./walletTransaction";
 
 export interface secretParamsT {
   marketId: bigint;
@@ -51,7 +55,7 @@ interface VoteConfigT {
   thresholdVotes: number;
   creator: Address;
 }
-interface getVoteConfigT {
+interface VoteDataT {
   resolvedOption: bigint;
   unlockedSecret: `0x${string}`;
   solver: `0x${string}`;
@@ -90,7 +94,7 @@ export type VoteCardData = {
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
-  getVoteData: getVoteConfigT;
+  getVoteData: VoteDataT;
 };
 
 export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
@@ -417,7 +421,7 @@ export async function updatePuzzleData(contractAddress: `0x${string}`) {
   const voteData = await getDataFromContract(contractAddress, "getVoteData");
   const unlockedSecret = voteData.unlockedSecret;
   const solver = voteData.solver;
-  
+
   const ZERO_ADDR = "0x0000000000000000000000000000000000000000";
   const ZERO_BYTES32 =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -453,42 +457,57 @@ export async function getBlockNumbers(
 
   return { startingBlock, endingBlock };
 }
+type VoterWithAmount = { address: Address; amount: bigint };
 
 export async function getAllCastedVotes(contractAddress: `0x${string}`) {
-  const voteConfig = await getDataFromContract(
-    contractAddress,
-    "getVoteConfig"
-  );
+  const contractAddressParsed = getAddress(contractAddress);
+  const [row] = await db
+    .select({
+      verified: secrets.verified,
+      server: secrets.server,
+      secretKey: secrets.secretKey,
+    })
+    .from(secrets)
+    .where(eq(secrets.contractAddress, contractAddressParsed))
+    .limit(1);
 
-  const startTimestamp = BigInt(voteConfig.startTimestamp);
-  const endTimestamp = BigInt(voteConfig.endTimestamp);
+  const isVerified = !!row?.verified;
+  const isServer = !!row?.server;
+  let secretKey = row!.secretKey;
+
+  if (!isVerified) {
+    return { success: false, error: "Contract not verified" };
+  }
+
+  const { startTimestamp, endTimestamp, optionA, optionB } =
+    await getDataFromContract(contractAddress, "getVoteConfig");
+  if (!isServer) {
+    const { unlockedSecret } = await getDataFromContract(
+      contractAddress,
+      "getVoteData"
+    );
+    const ZERO_BYTES32 =
+      "0x0000000000000000000000000000000000000000000000000000000000000000";
+    if (unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()) {
+      return {
+        success: false,
+        error: "SecretKey not set in and not revealed",
+      };
+    }
+    secretKey = unlockedSecret;
+  }
+
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now < endTimestamp) {
     return { success: false, error: "Vote not started or ended" };
   }
-  const contractAddressParsed = getAddress(contractAddress);
 
-  const [row] = await db
-    .select({ verified: secrets.verified })
-    .from(secrets)
-    .where(
-      and(
-        eq(secrets.contractAddress, contractAddressParsed),
-        eq(secrets.verified, true)
-      )
-    )
-    .limit(1);
-
-  const isVerified = !!row?.verified;
-  if (!isVerified) {
-    return { success: false, error: "Contract not verified" };
-  }
   const { startingBlock, endingBlock } = await getBlockNumbers(
     startTimestamp,
     endTimestamp
   );
   const voteCastEvent = parseAbiItem(
-    "event VoteCast(address indexed voter, uint256 indexed userPublicKey, bytes option)"
+    "event VoteCast(address indexed voter, uint256 indexed userPublicKey, uint256 indexed amount, bytes option)"
   );
   const eventLogs = await viemClient.getLogs({
     address: contractAddressParsed,
@@ -496,15 +515,73 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
     fromBlock: startingBlock,
     toBlock: endingBlock,
   });
-  const parsedEventLogs = parseVoteCastLogs(eventLogs);
+  const parsedEventLogs = await parseVoteCastLogs(eventLogs);
+  const Options = [optionA.toString(), optionB.toString()];
+  let inValidVotes = 0;
+  const OptionVotes: [number, number] = [0, 0];
+  const OptionAVoters: VoterWithAmount[] = [];
+  const OptionBVoters: VoterWithAmount[] = [];
+  let OptionABalances = 0n;
+  let OptionBBalances = 0n;
+  let addedRewards = 0n;
+  let WinningOptionVoters: VoterWithAmount[] = [];
+  let LosingOptionVoters: VoterWithAmount[] = [];
+  let resolvedOption: bigint | null = null;
 
-  return parsedEventLogs;
+  for (const { userAddress, pk, option, amount } of parsedEventLogs) {
+    try {
+      const decrypted = await decryptVote(option, pk, secretKey);
+      if (decrypted === Options[0]) {
+        OptionVotes[0] += 1;
+        OptionAVoters.push({ address: userAddress, amount });
+        OptionABalances += amount;
+      } else if (decrypted === Options[1]) {
+        OptionVotes[1] += 1;
+        OptionBVoters.push({ address: userAddress, amount });
+        OptionBBalances += amount;
+      } else {
+        inValidVotes += 1;
+      }
+    } catch {
+      console.error("Error decrypting vote");
+    }
+  }
+  if (OptionVotes[0] > OptionVotes[1]) {
+    resolvedOption = optionA;
+    WinningOptionVoters = OptionAVoters;
+    LosingOptionVoters = OptionBVoters;
+    addedRewards = OptionBBalances;
+  } else {
+    resolvedOption = optionB;
+    WinningOptionVoters = OptionBVoters;
+    LosingOptionVoters = OptionAVoters;
+    addedRewards = OptionABalances;
+  }
+  const { winnerRoot, loserRoot } = await buildWinnerLoserMerkles(
+    WinningOptionVoters,
+    LosingOptionVoters,
+    contractAddressParsed
+  );
+  const txHash = await walletClient.writeContract({
+    address: contractAddressParsed,
+    abi: CREATEVOTE_ABI,
+    functionName: "finalizeVote",
+    args: [
+      BigInt(OptionVotes[0]),
+      BigInt(OptionVotes[1]),
+      winnerRoot,
+      loserRoot,
+      addedRewards,
+    ],
+  });
+  return { success: true, txHash };
 }
 
 type ParsedVote = {
   userAddress: Address;
   pk: bigint;
   option: string;
+  amount: bigint;
 };
 export async function parseVoteCastLogs(
   logs: Array<{
@@ -523,6 +600,12 @@ export async function parseVoteCastLogs(
       const userAddress = getAddress(rawAddr);
       const pk = hexToBigInt(l.topics[2] as Hex);
       const [option] = decodeAbiParameters([{ type: "bytes" }], l.data as Hex);
-      return { userAddress, pk, option: option.slice(2) as string };
+      const amount = hexToBigInt(l.topics[3] as Hex);
+      return { userAddress, pk, option: option.slice(2) as string, amount };
     });
 }
+
+const val = await getAllCastedVotes(
+  "0x6cb1847aa7c10df607f7a557b10463aae952f9af" as `0x${string}`
+);
+console.log({ val });

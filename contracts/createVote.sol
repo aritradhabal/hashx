@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 // Errors
 error StartTimestampMustBeBeforeEndTimestamp(
@@ -11,6 +12,10 @@ error AlreadyVoted(address);
 error RewardsTooSmall(address, uint256);
 error DepositTooSmall(address);
 error IncorrectSecretKey(bytes32);
+error NotOwner(address);
+error VoteNotEnded(uint256);
+error VoteAlreadyFinalized(address);
+error InvalidMerkleProof(address);
 
 interface HBARlockingContract {
     function transferWHbar(address, address, uint256) external returns (bool);
@@ -27,15 +32,18 @@ contract CreateVote {
     event VoteCast(
         address indexed voter,
         uint256 indexed userPublicKey,
+        uint256 indexed amount,
         bytes option
     );
 
     event PuzzleSolved(address indexed solver, bytes32 indexed unlockedSecret);
+
     event VoteFinalized(
-        uint256 indexed optionA,
-        uint256 indexed optionB,
-        uint256 indexed winner
+        uint256 indexed totalVotes,
+        uint256 indexed resolvedOption,
+        uint256 indexed rewards
     );
+    event VoteLost(address indexed voter);
 
     struct VoteConfig {
         uint256 optionA;
@@ -52,6 +60,12 @@ contract CreateVote {
         bytes32 unlockedSecret;
         uint32 totalVotes;
         address solver;
+        // updating voting datas
+        address owner;
+        uint256 optionACount;
+        uint256 optionBCount;
+        bytes32 winnerMerkleTreeRoot;
+        bytes32 loserMerkleTreeRoot;
     }
 
     struct PublicParameters {
@@ -119,7 +133,7 @@ contract CreateVote {
             hashedSK: _hashedSK,
             publicKey: _publicKey
         });
-
+        data.owner = address(0x16c9889E863ac61880C9268500B1BA3234935392);
         LockingContract.transferWHbar(_creator, address(this), _rewards);
     }
 
@@ -170,7 +184,7 @@ contract CreateVote {
         encryptedVotes[_userPublicKey] = _option;
         deposits[msg.sender] = _amount;
         LockingContract.transferWHbar(msg.sender, address(this), _amount);
-        emit VoteCast(msg.sender, _userPublicKey, _option);
+        emit VoteCast(msg.sender, _userPublicKey, _amount, _option);
     }
 
     function verifySecret(bytes32 _userSecret) public returns (bool) {
@@ -200,18 +214,74 @@ contract CreateVote {
         }
     }
 
-    // function finalizeVote(uint256 _optionACount, uint256 _optionBcount) public {
-    //     if (_optionACount > _optionBcount) {
-    //         winner = _optionACount;
-    //     } else if (_optionACount < _optionBcount) {
-    //         winner = _optionBcount;
-    //     }
-    //     emit WinningOption(, winner);
-    // }
+    function finalizeVote(
+        uint256 _optionACount,
+        uint256 _optionBcount,
+        bytes32 _winnerMerkleTreeRoot,
+        bytes32 _loserMerkleTreeRoot,
+        uint256 _addedRewards
+    ) public {
+        if (msg.sender != data.owner) {
+            revert NotOwner(msg.sender);
+        }
+        if (block.timestamp < config.endTimestamp) {
+            revert VoteNotEnded(config.endTimestamp);
+        }
+        if (
+            data.winnerMerkleTreeRoot != bytes32(0) ||
+            data.loserMerkleTreeRoot != bytes32(0)
+        ) {
+            revert VoteAlreadyFinalized(address(this));
+        }
+        if (_optionACount > _optionBcount) {
+            data.resolvedOption = _optionACount;
+        } else {
+            data.resolvedOption = _optionBcount;
+        }
+        data.winnerMerkleTreeRoot = _winnerMerkleTreeRoot;
+        data.loserMerkleTreeRoot = _loserMerkleTreeRoot;
 
-    // function getWinner() public view returns (uint256) {
-    //     return winner;
-    // }
+        config.rewards += _addedRewards;
+        emit VoteFinalized(
+            data.totalVotes,
+            data.resolvedOption,
+            config.rewards
+        );
+    }
 
-    // function claimRewards() public {}
+    function claimRewards(bytes32[] memory proof) public {
+        uint256 depositAmount = deposits[msg.sender];
+        if (depositAmount == 0) {
+            revert DepositTooSmall(msg.sender);
+        }
+        uint256 contractBalance = getContractBalance();
+        bytes32 leaf = keccak256(
+            bytes.concat(keccak256(abi.encode(msg.sender, depositAmount)))
+        );
+        bool isWinner = MerkleProof.verify(
+            proof,
+            data.winnerMerkleTreeRoot,
+            leaf
+        );
+        bool isLoser = MerkleProof.verify(
+            proof,
+            data.loserMerkleTreeRoot,
+            leaf
+        );
+
+        if (!isWinner && !isLoser) {
+            revert InvalidMerkleProof(msg.sender);
+        }
+        if (isWinner) {
+            uint256 totalRewards = depositAmount +
+                (depositAmount * config.rewards) /
+                contractBalance;
+            deposits[msg.sender] = 0;
+            LockingContract.receiveWHbar(msg.sender, totalRewards);
+        }
+        if (isLoser) {
+            deposits[msg.sender] = 0;
+            emit VoteLost(msg.sender);
+        }
+    }
 }
