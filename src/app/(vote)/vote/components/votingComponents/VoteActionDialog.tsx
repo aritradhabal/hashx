@@ -304,7 +304,7 @@ export const VoteActionDialog = ({
           <Card className="w-full bg-background rounded-md">
             <CardHeader>
               <CardTitle>
-                Total Reward in &#8463;: {Number(BigInt(rewards) / BigInt(1e8))}
+                Total Reward: {Number(BigInt(rewards) / BigInt(1e8))} &#8463;
               </CardTitle>
               <CardDescription className="text-xs">
                 Voting Rewards will be distributed in proportion voters balance.

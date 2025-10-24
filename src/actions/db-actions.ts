@@ -460,12 +460,11 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   if (!isVerified) {
     return { success: false, error: "Contract not verified" };
   }
+  let totalVotes = 0;
   try {
     if (!isServer) {
-      const { unlockedSecret } = await getDataFromContract(
-        contractAddress,
-        "getVoteData"
-      );
+      const { unlockedSecret, totalVotes: _totalVotes } =
+        await getDataFromContract(contractAddress, "getVoteData");
       const ZERO_BYTES32 =
         "0x0000000000000000000000000000000000000000000000000000000000000000";
       if (unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()) {
@@ -475,26 +474,41 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
         };
       }
       secretKey = unlockedSecret;
+      totalVotes = _totalVotes;
     }
   } catch (error) {
     console.error("Error getting vote data from contract", error);
     return { success: false, error: "Error Getting Vote Data from Contract" };
   }
+  console.log(totalVotes);
+  if (totalVotes < 2) {
+    console.error(
+      "Atleast 2 votes required to finalize. Current votes: " + totalVotes
+    );
+    return {
+      success: false,
+      error: "Minimum 2 votes are required to finalize",
+    };
+  }
+
   let startTimestamp: bigint;
   let endTimestamp: bigint;
   let optionA: bigint;
   let optionB: bigint;
+  let rewards: bigint;
   try {
     const {
       startTimestamp: _startTimestamp,
       endTimestamp: _endTimestamp,
       optionA: _optionA,
       optionB: _optionB,
+      rewards: _rewards,
     } = await getDataFromContract(contractAddress, "getVoteConfig");
     startTimestamp = _startTimestamp;
     endTimestamp = _endTimestamp;
     optionA = _optionA;
     optionB = _optionB;
+    rewards = _rewards;
   } catch (error) {
     console.error("Error getting vote config from contract", error);
     return { success: false, error: "Error Getting Vote Config from Contract" };
@@ -605,10 +619,16 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
     return { success: false, error: "Finalized Transaction Failed" };
   }
   try {
+    const totalRewards = rewards + addedRewards;
     await db
       .update(proofs)
       .set({ isResolved: true })
       .where(eq(proofs.contractAddress, contractAddressParsed.toLowerCase()));
+
+    await db
+      .update(secrets)
+      .set({ rewards: totalRewards })
+      .where(eq(secrets.contractAddress, contractAddress));
     return { success: true, data: txHash };
   } catch (error) {
     console.error("Error updating proofs in DB", error);
