@@ -1,0 +1,1 @@
+ALTER TABLE "proofs" ALTER COLUMN "merkle_proofs" SET DATA TYPE jsonb;

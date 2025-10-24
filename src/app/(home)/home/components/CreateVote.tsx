@@ -328,9 +328,24 @@ export const CreateVote = () => {
                     hashedSK,
                     publicKey,
                   };
-
+                  console.log("CreateVote Arguments:", {
+                    marketId: callArgs.marketId?.toString(),
+                    optionA: callArgs.optionA?.toString(),
+                    optionB: callArgs.optionB?.toString(),
+                    rewards: callArgs.rewards?.toString(),
+                    startTimestamp: callArgs.startTimestamp?.toString(),
+                    endTimestamp: callArgs.endTimestamp?.toString(),
+                    thresholdVotes: callArgs.thresholdVotes?.toString(),
+                    hbarLockingContractAddress:
+                      callArgs.hbarLockingContractAddress?.toString(),
+                    N: callArgs.N?.toString(),
+                    t: callArgs.t?.toString(),
+                    a: callArgs.a?.toString(),
+                    skLocked: callArgs.skLocked?.toString(),
+                    hashedSK: callArgs.hashedSK?.toString(),
+                    publicKey: callArgs.publicKey?.toString(),
+                  });
                   try {
-                    console.log("trying");
                     const txHash = await writeContractAsync({
                       address: CreateVoteFactoryContractConfig.address,
                       abi: CreateVoteFactoryContractConfig.abi,

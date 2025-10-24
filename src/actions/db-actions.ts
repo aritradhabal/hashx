@@ -1,6 +1,6 @@
 "use server";
 import { db } from "@/db/index";
-import { secrets } from "@/db/schema";
+import { proofs, secrets } from "@/db/schema";
 import {
   CREATEVOTE_ABI,
   CREATEVOTE_FACTORY_ADDRESS,
@@ -560,7 +560,7 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   const { winnerRoot, loserRoot } = await buildWinnerLoserMerkles(
     WinningOptionVoters,
     LosingOptionVoters,
-    contractAddressParsed
+    contractAddressParsed.toLowerCase()
   );
   const txHash = await walletClient.writeContract({
     address: contractAddressParsed,
@@ -574,7 +574,7 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
       addedRewards,
     ],
   });
-  return { success: true, txHash };
+  return { success: true, data: txHash };
 }
 
 type ParsedVote = {
@@ -605,7 +605,27 @@ export async function parseVoteCastLogs(
     });
 }
 
-const val = await getAllCastedVotes(
-  "0x6cb1847aa7c10df607f7a557b10463aae952f9af" as `0x${string}`
-);
-console.log({ val });
+export async function getMerkleProof({
+  contractAddress,
+  userAddress,
+}: {
+  contractAddress: `0x${string}`;
+  userAddress: Address;
+}) {
+  const contractAddrLowerCase = contractAddress.toLowerCase();
+  const userAddressLowerCase = userAddress.toLowerCase();
+  try {
+    const merkleProofs = await db
+      .select({ merkleProofs: proofs.merkleProofs })
+      .from(proofs)
+      .where(
+        and(
+          eq(proofs.userAddress, userAddressLowerCase),
+          eq(proofs.contractAddress, contractAddrLowerCase)
+        )
+      );
+    return { success: true, data: merkleProofs };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

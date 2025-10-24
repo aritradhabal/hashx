@@ -33,27 +33,25 @@ export async function buildWinnerLoserMerkles(
   const winnerProofsByAddress = w.proofsByAddress;
   const loserProofsByAddress = l.proofsByAddress;
 
-  const allProofs = Object.entries({
-    ...winnerProofsByAddress,
-    ...loserProofsByAddress,
-  }).flatMap(([userAddress, proofsArray]) =>
-    proofsArray.map((proof) => ({
-      userAddress: userAddress.toLowerCase(),
+  const winnerRows = Object.entries(winnerProofsByAddress).map(
+    ([userAddress, merkleProofs]) => ({
+      userAddress,
       contractAddress,
-      merkleProofs: proof,
-    }))
+      merkleProofs,
+    })
   );
+  const loserRows = Object.entries(loserProofsByAddress).map(
+    ([userAddress, merkleProofs]) => ({
+      userAddress,
+      contractAddress,
+      merkleProofs,
+    })
+  );
+  const allRows = [...winnerRows, ...loserRows];
 
-  await db.insert(proofs).values(allProofs).onConflictDoNothing();
+  await db.insert(proofs).values(allRows);
   return {
     winnerRoot: w.root,
     loserRoot: l.root,
   };
 }
-
-// const result = {
-//   winnerRoot:
-//     "0xc798c0bbbcf3e21f154d58b176d527aa6abb907707d0dcf9aa3ab0b6538998df",
-//   loserRoot:
-//     "0xc798c0bbbcf3e21f154d58b176d527aa6abb907707d0dcf9aa3ab0b6538998df",
-// };

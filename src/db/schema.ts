@@ -40,8 +40,7 @@ export const users = pgTable("users", {
 
 export const proofs = pgTable("proofs", {
   id: serial("id").primaryKey(),
-  userAddress: varchar("user_address", { length: 80 })
-    .notNull(),
+  userAddress: varchar("user_address", { length: 80 }).notNull(),
   contractAddress: varchar("contract_address", { length: 80 }).notNull(),
-  merkleProofs: varchar("merkle_proofs", { length: 150 }).notNull(),
+  merkleProofs: jsonb("merkle_proofs").notNull(),
 });
