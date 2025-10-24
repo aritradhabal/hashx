@@ -43,4 +43,5 @@ export const proofs = pgTable("proofs", {
   userAddress: varchar("user_address", { length: 80 }).notNull(),
   contractAddress: varchar("contract_address", { length: 80 }).notNull(),
   merkleProofs: jsonb("merkle_proofs").notNull(),
+  isResolved: boolean("is_resolved").notNull().default(false),
 });

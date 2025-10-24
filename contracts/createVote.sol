@@ -65,7 +65,6 @@ contract CreateVote {
         uint256 optionACount;
         uint256 optionBCount;
         bytes32 winnerMerkleTreeRoot;
-        bytes32 loserMerkleTreeRoot;
     }
 
     struct PublicParameters {
@@ -218,7 +217,6 @@ contract CreateVote {
         uint256 _optionACount,
         uint256 _optionBcount,
         bytes32 _winnerMerkleTreeRoot,
-        bytes32 _loserMerkleTreeRoot,
         uint256 _addedRewards
     ) public {
         if (msg.sender != data.owner) {
@@ -227,10 +225,7 @@ contract CreateVote {
         if (block.timestamp < config.endTimestamp) {
             revert VoteNotEnded(config.endTimestamp);
         }
-        if (
-            data.winnerMerkleTreeRoot != bytes32(0) ||
-            data.loserMerkleTreeRoot != bytes32(0)
-        ) {
+        if (data.winnerMerkleTreeRoot != bytes32(0)) {
             revert VoteAlreadyFinalized(address(this));
         }
         if (_optionACount > _optionBcount) {
@@ -239,9 +234,8 @@ contract CreateVote {
             data.resolvedOption = _optionBcount;
         }
         data.winnerMerkleTreeRoot = _winnerMerkleTreeRoot;
-        data.loserMerkleTreeRoot = _loserMerkleTreeRoot;
-
         config.rewards += _addedRewards;
+
         emit VoteFinalized(
             data.totalVotes,
             data.resolvedOption,
@@ -254,7 +248,7 @@ contract CreateVote {
         if (depositAmount == 0) {
             revert DepositTooSmall(msg.sender);
         }
-        uint256 contractBalance = getContractBalance();
+
         bytes32 leaf = keccak256(
             bytes.concat(keccak256(abi.encode(msg.sender, depositAmount)))
         );
@@ -263,25 +257,15 @@ contract CreateVote {
             data.winnerMerkleTreeRoot,
             leaf
         );
-        bool isLoser = MerkleProof.verify(
-            proof,
-            data.loserMerkleTreeRoot,
-            leaf
-        );
 
-        if (!isWinner && !isLoser) {
+        if (!isWinner) {
             revert InvalidMerkleProof(msg.sender);
         }
-        if (isWinner) {
-            uint256 totalRewards = depositAmount +
-                (depositAmount * config.rewards) /
-                contractBalance;
-            deposits[msg.sender] = 0;
-            LockingContract.receiveWHbar(msg.sender, totalRewards);
-        }
-        if (isLoser) {
-            deposits[msg.sender] = 0;
-            emit VoteLost(msg.sender);
-        }
+        uint256 contractBalance = getContractBalance();
+        uint256 totalRewards = depositAmount +
+            (depositAmount * config.rewards) /
+            contractBalance;
+        deposits[msg.sender] = 0;
+        LockingContract.receiveWHbar(msg.sender, totalRewards);
     }
 }

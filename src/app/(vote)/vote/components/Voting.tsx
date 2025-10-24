@@ -50,6 +50,9 @@ import {
   updatePuzzleData,
   getResolvedVotes,
   getUpcomingVotes,
+  getDataFromContract,
+  getAllCastedVotes,
+  getMerkleProof,
 } from "@/actions/db-actions";
 import type { VoteCardData } from "@/actions/db-actions";
 import { keccak256 } from "viem";
@@ -57,7 +60,6 @@ type TabValue = "Ongoing" | "Resolved" | "Upcoming";
 import { CREATEVOTE_ABI } from "@/constants";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-
 export const Voting = () => {
   const [activeTab, setActiveTab] = React.useState<TabValue>("Ongoing");
   const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
@@ -114,10 +116,10 @@ export const Voting = () => {
   return (
     <>
       <div className="h-full w-full flex flex-col justify-start items-center gap-y-5">
-        <h2 className="w-xs md:w-xl text-xl md:text-2xl text-center font-bold break-words whitespace-normal pt-2">
+        <h2 className="w-xs md:w-xl xl:w-2xl text-xl md:text-2xl xl:text-3xl text-center font-bold break-words whitespace-normal pt-2 md:pt-5 xl:pt-10">
           Submit Your Vote and Earn Rewards
         </h2>
-        <Item variant="outline" className="w-xs md:w-3xl">
+        <Item variant="outline" className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl">
           <ItemContent>
             <ItemTitle>Your Votes</ItemTitle>
             <ItemDescription className="text-xs break-words whitespace-normal">
@@ -138,7 +140,7 @@ export const Voting = () => {
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as TabValue)}
-          className="w-xs md:w-3xl pb-5 flex flex-col items-center justify-center gap-y-5 "
+          className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl pb-5 flex flex-col items-center justify-center gap-y-5 "
         >
           <TabsList className="w-full">
             <TabsTrigger value="Ongoing" className="cursor-pointer">
@@ -277,7 +279,7 @@ export const Voting = () => {
                   setResolved={setResolved}
                   setUpcoming={setUpcoming}
                   activeTab={activeTab}
-                  timeleft={Date.now() / 1000 - Number(vote.startTimestamp)}
+                  timeleft={Number(vote.startTimestamp) - Date.now() / 1000}
                 />
               ))}
             </div>
@@ -339,6 +341,9 @@ export const VoteCard = ({
   activeTab: TabValue;
   timeleft?: number;
 }) => {
+  const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+
   const formatTimeLeft = (totalSeconds: number) => {
     const t = Math.max(0, Math.floor(totalSeconds));
     const days = Math.floor(t / 86400);
@@ -351,8 +356,152 @@ export const VoteCard = ({
     parts.push(`${minutes}m`);
     return parts.join(" ");
   };
+  const [resolvedOption, setResolvedOption] = useState<bigint | undefined>();
+
+  const [isVerifyingResult, setIsVerifyingResult] = useState(false);
+  const [isClaimingRewards, setIsClaimingRewards] = useState(false);
+  const [txHashForClaim, setTxHashForClaim] = useState<`0x${string}`>();
+  const [btnDisabled, setBtnDisabled] = useState(false);
+  const [toastIdClaim, setToastIdClaim] = useState<string | number>(
+    "verify-or-claim-toast"
+  );
+  const { fetchBalance: fetchTokenBalance } = useTokenBalanceStore();
+  const { isSuccess, isError } = useWaitForTransactionReceipt({
+    hash: txHashForClaim as `0x${string}`,
+    query: {
+      enabled: !!txHashForClaim,
+    },
+  });
+
+  useEffect(() => {
+    if (!isSuccess && !isError) return;
+    const checkTxHashForClaimStatus = async () => {
+      if (isSuccess) {
+        toast.success("Transaction Successful", {
+          duration: 3500,
+          id: toastIdClaim,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+                "_blank"
+              );
+            },
+          },
+        });
+        setBtnDisabled(false);
+        setIsVerifyingResult(false);
+        setIsClaimingRewards(false);
+        fetchTokenBalance();
+      }
+      if (isError) {
+        toast.error("Transaction Failed", {
+          duration: 3500,
+          id: toastIdClaim,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+                "_blank"
+              );
+            },
+          },
+        });
+        setBtnDisabled(false);
+        setIsVerifyingResult(false);
+        setIsClaimingRewards(false);
+        fetchTokenBalance();
+      }
+    };
+    checkTxHashForClaimStatus();
+  }, [txHashForClaim, isSuccess, isError]);
+
+  const claimRewards = async () => {
+    setIsClaimingRewards(true);
+    setBtnDisabled(true);
+    const { success, data } = await getMerkleProof({
+      contractAddress: contractAddress as `0x${string}`,
+      userAddress: address as `0x${string}`,
+    });
+    if (!success) {
+      toast.error("Error fetching merkle proof", {
+        id: toastIdClaim,
+        duration: 2000,
+      });
+      setIsClaimingRewards(false);
+      setBtnDisabled(false);
+      return;
+    } else {
+      const txHash = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi: CREATEVOTE_ABI,
+        functionName: "claimRewards",
+        args: [data],
+      });
+      setTxHashForClaim(txHash);
+      toast.loading("Transaction Submitted...", {
+        id: toastIdClaim,
+        duration: 10000,
+        action: {
+          label: "View on Explorer",
+          onClick: () => {
+            window.open(
+              `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+              "_blank"
+            );
+          },
+        },
+      });
+    }
+  };
+  const verifyResult = async () => {
+    setIsVerifyingResult(true);
+    setBtnDisabled(true);
+    const { resolvedOption } = await getDataFromContract(
+      contractAddress as `0x${string}`,
+      "getVoteData"
+    );
+    if (resolvedOption !== 0n) {
+      setResolvedOption(resolvedOption);
+      setIsVerifyingResult(false);
+      setBtnDisabled(false);
+      return;
+    } else {
+      const { success, data, error } = await getAllCastedVotes(
+        contractAddress as `0x${string}`
+      );
+      if (!success) {
+        toast.error(error as string, {
+          duration: 2000,
+        });
+        setIsVerifyingResult(false);
+        setBtnDisabled(false);
+        return;
+      } else {
+        setTxHashForClaim(data);
+        toast.loading("Transaction Submitted...", {
+          id: toastIdClaim,
+          duration: 10000,
+          action: {
+            label: "View on Explorer",
+            onClick: () => {
+              window.open(
+                `https://hashscan.io/testnet/transaction/${txHashForClaim}`,
+                "_blank"
+              );
+            },
+          },
+        });
+        setBtnDisabled(true);
+        setBtnDisabled(false);
+      }
+    }
+  };
+
   return (
-    <Item variant="outline" className="w-xs md:w-3xl">
+    <Item variant="outline" className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl">
       <ItemContent>
         <ItemTitle>{title}</ItemTitle>
         <ItemDescription className="flex flex-wrap break-words whitespace-normal">
@@ -381,9 +530,40 @@ export const VoteCard = ({
           </>
         )}
         {activeTab === "Resolved" && (
-          <Button variant="outline" size="sm">
-            Claim Rewards
-          </Button>
+          <>
+            {!resolvedOption ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={verifyResult}
+                disabled={btnDisabled}
+              >
+                {isVerifyingResult ? (
+                  <>
+                    {" "}
+                    <Spinner /> Verifying Result...
+                  </>
+                ) : (
+                  "Verify Result"
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={claimRewards}
+                disabled={btnDisabled}
+              >
+                {isClaimingRewards ? (
+                  <>
+                    <Spinner /> Claiming Rewards...
+                  </>
+                ) : (
+                  "Claim Rewards"
+                )}
+              </Button>
+            )}
+          </>
         )}
         {activeTab === "Upcoming" && (
           <DetailsDialog
@@ -706,94 +886,72 @@ export const DetailsDialog = ({
             </Label>
           </InputGroupAddon>
         </InputGroup>
-        {server === false ? (
-          solver === "0x0000000000000000000000000000000000000000" ? (
-            <>
-              <InputGroup>
-                <InputGroupInput
-                  value={sk_Recovered ?? ""}
-                  onChange={(e) => {
-                    setSkRecovered(e.target.value as `0x${string}`);
-                  }}
-                  disabled={isVerified}
-                  id="public-parameters-soln"
-                  placeholder="Enter computed puzzle solution"
-                  className="resize-none break-all text-xs font-mono !cursor-text"
-                />
-                <InputGroupAddon align="block-start">
-                  <Label
-                    htmlFor="public-parameters-soln"
-                    className="text-foreground"
-                  >
-                    Secret Key (SK)
-                  </Label>
-                </InputGroupAddon>
-              </InputGroup>
-              <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
-                <DialogClose asChild>
-                  <Button variant="outline">Close</Button>
-                </DialogClose>
-                <div className="flex justify-center items-center gap-2 flex-wrap">
-                  <Button
-                    type="button"
-                    disabled={!sk_Recovered || isVerified}
-                    onClick={verifyPuzzle}
-                  >
-                    {isVerified ? "Verified" : "Verify"}
-                  </Button>
-                  <Button
-                    type="submit"
-                    onClick={submitPuzzleSolution}
-                    disabled={!isVerified || submitBtnClicked}
-                  >
-                    {submitBtnClicked ? (
-                      <>
-                        <Spinner /> Submitting...
-                      </>
-                    ) : (
-                      "Submit"
-                    )}
-                  </Button>
-                </div>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <InputGroup>
-                <InputGroupTextarea
-                  readOnly={true}
-                  disabled={true}
-                  value={unlockedSecret}
-                  id="public-parameters-sk"
-                  className="resize-none break-all text-xs font-mono !cursor-text"
-                />
-                <InputGroupAddon align="block-start">
-                  <Label
-                    htmlFor="public-parameters-sk"
-                    className="text-foreground"
-                  >
-                    Secret Key (SK)
-                  </Label>
-                </InputGroupAddon>
-              </InputGroup>
-            </>
-          )
+        {solver === "0x0000000000000000000000000000000000000000" ? (
+          <>
+            <InputGroup>
+              <InputGroupInput
+                value={sk_Recovered ?? ""}
+                onChange={(e) => {
+                  setSkRecovered(e.target.value as `0x${string}`);
+                }}
+                disabled={isVerified}
+                id="public-parameters-soln"
+                placeholder="Enter computed puzzle solution"
+                className="resize-none break-all text-xs font-mono !cursor-text"
+              />
+              <InputGroupAddon align="block-start">
+                <Label
+                  htmlFor="public-parameters-soln"
+                  className="text-foreground"
+                >
+                  Secret Key (SK)
+                </Label>
+              </InputGroupAddon>
+            </InputGroup>
+            <DialogFooter className="flex flex-row flex-wrap !items-center !justify-between">
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+              <div className="flex justify-center items-center gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  disabled={!sk_Recovered || isVerified}
+                  onClick={verifyPuzzle}
+                >
+                  {isVerified ? "Verified" : "Verify"}
+                </Button>
+                <Button
+                  type="submit"
+                  onClick={submitPuzzleSolution}
+                  disabled={!isVerified || submitBtnClicked}
+                >
+                  {submitBtnClicked ? (
+                    <>
+                      <Spinner /> Submitting...
+                    </>
+                  ) : (
+                    "Submit"
+                  )}
+                </Button>
+              </div>
+            </DialogFooter>
+          </>
         ) : (
           <>
             <InputGroup>
               <InputGroupTextarea
                 readOnly={true}
                 disabled={true}
-                value={publicKey}
-                id="public-parameters-public-key"
+                value={unlockedSecret}
+                id="public-parameters-sk"
                 className="resize-none break-all text-xs font-mono !cursor-text"
               />
               <InputGroupAddon align="block-start">
                 <Label
-                  htmlFor="public-parameters-public-key"
+                  htmlFor="public-parameters-sk"
                   className="text-foreground"
                 >
-                  Public Key (PK)
+                  Secret Key (SK)
                 </Label>
               </InputGroupAddon>
             </InputGroup>

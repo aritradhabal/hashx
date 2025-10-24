@@ -106,7 +106,7 @@ export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
   return checksummedAddress;
 }
 
-const getDataFromContract = async <F extends keyof ReadMap>(
+export const getDataFromContract = async <F extends keyof ReadMap>(
   address: `0x${string}`,
   functionName: F
 ): Promise<ReadMap[F]> => {
@@ -461,61 +461,113 @@ type VoterWithAmount = { address: Address; amount: bigint };
 
 export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   const contractAddressParsed = getAddress(contractAddress);
-  const [row] = await db
-    .select({
-      verified: secrets.verified,
-      server: secrets.server,
-      secretKey: secrets.secretKey,
-    })
-    .from(secrets)
-    .where(eq(secrets.contractAddress, contractAddressParsed))
-    .limit(1);
-
-  const isVerified = !!row?.verified;
-  const isServer = !!row?.server;
-  let secretKey = row!.secretKey;
+  try {
+    const result = await db
+      .select({ isResolved: proofs.isResolved })
+      .from(proofs)
+      .where(eq(proofs.contractAddress, contractAddressParsed.toLowerCase()))
+      .limit(1);
+    if (result[0]?.isResolved) {
+      return { success: false, error: "Vote already resolved" };
+    }
+  } catch (error) {
+    console.error("Error getting proofs from DB", error);
+    return { success: false, error: "Fetching Proofs Failed" };
+  }
+  let isVerified: boolean;
+  let isServer: boolean;
+  let secretKey: string;
+  try {
+    const [row] = await db
+      .select({
+        verified: secrets.verified,
+        server: secrets.server,
+        secretKey: secrets.secretKey,
+      })
+      .from(secrets)
+      .where(eq(secrets.contractAddress, contractAddressParsed))
+      .limit(1);
+    isVerified = row.verified;
+    isServer = row.server;
+    secretKey = row.secretKey;
+  } catch (error) {
+    console.error("Error getting secrets from DB", error);
+    return { success: false, error: "Error Connecting to DB" };
+  }
 
   if (!isVerified) {
     return { success: false, error: "Contract not verified" };
   }
-
-  const { startTimestamp, endTimestamp, optionA, optionB } =
-    await getDataFromContract(contractAddress, "getVoteConfig");
-  if (!isServer) {
-    const { unlockedSecret } = await getDataFromContract(
-      contractAddress,
-      "getVoteData"
-    );
-    const ZERO_BYTES32 =
-      "0x0000000000000000000000000000000000000000000000000000000000000000";
-    if (unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()) {
-      return {
-        success: false,
-        error: "SecretKey not set in and not revealed",
-      };
+  try {
+    if (!isServer) {
+      const { unlockedSecret } = await getDataFromContract(
+        contractAddress,
+        "getVoteData"
+      );
+      const ZERO_BYTES32 =
+        "0x0000000000000000000000000000000000000000000000000000000000000000";
+      if (unlockedSecret.toLowerCase() === ZERO_BYTES32.toLowerCase()) {
+        return {
+          success: false,
+          error: "SecretKey not set or not revealed",
+        };
+      }
+      secretKey = unlockedSecret;
     }
-    secretKey = unlockedSecret;
+  } catch (error) {
+    console.error("Error getting vote data from contract", error);
+    return { success: false, error: "Error Getting Vote Data from Contract" };
   }
-
+  let startTimestamp: bigint;
+  let endTimestamp: bigint;
+  let optionA: bigint;
+  let optionB: bigint;
+  try {
+    const {
+      startTimestamp: _startTimestamp,
+      endTimestamp: _endTimestamp,
+      optionA: _optionA,
+      optionB: _optionB,
+    } = await getDataFromContract(contractAddress, "getVoteConfig");
+    startTimestamp = _startTimestamp;
+    endTimestamp = _endTimestamp;
+    optionA = _optionA;
+    optionB = _optionB;
+  } catch (error) {
+    console.error("Error getting vote config from contract", error);
+    return { success: false, error: "Error Getting Vote Config from Contract" };
+  }
   const now = BigInt(Math.floor(Date.now() / 1000));
   if (now < endTimestamp) {
     return { success: false, error: "Vote not started or ended" };
   }
-
-  const { startingBlock, endingBlock } = await getBlockNumbers(
-    startTimestamp,
-    endTimestamp
-  );
+  let startingBlock: bigint;
+  let endingBlock: bigint;
+  try {
+    const { startingBlock: _startingBlock, endingBlock: _endingBlock } =
+      await getBlockNumbers(startTimestamp, endTimestamp);
+    startingBlock = _startingBlock;
+    endingBlock = _endingBlock;
+  } catch (error) {
+    console.error("Error getting block numbers", error);
+    return { success: false, error: "Error Getting Block Numbers" };
+  }
   const voteCastEvent = parseAbiItem(
     "event VoteCast(address indexed voter, uint256 indexed userPublicKey, uint256 indexed amount, bytes option)"
   );
-  const eventLogs = await viemClient.getLogs({
-    address: contractAddressParsed,
-    event: voteCastEvent,
-    fromBlock: startingBlock,
-    toBlock: endingBlock,
-  });
-  const parsedEventLogs = await parseVoteCastLogs(eventLogs);
+  let parsedEventLogs: ParsedVote[] = [];
+  try {
+    const eventLogs = await viemClient.getLogs({
+      address: contractAddressParsed,
+      event: voteCastEvent,
+      fromBlock: startingBlock,
+      toBlock: endingBlock,
+    });
+    parsedEventLogs = await parseVoteCastLogs(eventLogs);
+  } catch (error) {
+    console.error("Error fetching cast event logs", error);
+    return { success: false, error: "Fetching CastEvent Logs Failed" };
+  }
   const Options = [optionA.toString(), optionB.toString()];
   let inValidVotes = 0;
   const OptionVotes: [number, number] = [0, 0];
@@ -529,6 +581,7 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
   let resolvedOption: bigint | null = null;
 
   for (const { userAddress, pk, option, amount } of parsedEventLogs) {
+    console.log({ userAddress, pk, option, amount });
     try {
       const decrypted = await decryptVote(option, pk, secretKey);
       if (decrypted === Options[0]) {
@@ -542,8 +595,9 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
       } else {
         inValidVotes += 1;
       }
-    } catch {
-      console.error("Error decrypting vote");
+    } catch (error) {
+      console.error("Error decrypting vote", error);
+      return { success: false, error: "Parsing Event Logs Failed" };
     }
   }
   if (OptionVotes[0] > OptionVotes[1]) {
@@ -557,24 +611,46 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
     LosingOptionVoters = OptionAVoters;
     addedRewards = OptionABalances;
   }
-  const { winnerRoot, loserRoot } = await buildWinnerLoserMerkles(
-    WinningOptionVoters,
-    LosingOptionVoters,
-    contractAddressParsed.toLowerCase()
-  );
-  const txHash = await walletClient.writeContract({
-    address: contractAddressParsed,
-    abi: CREATEVOTE_ABI,
-    functionName: "finalizeVote",
-    args: [
-      BigInt(OptionVotes[0]),
-      BigInt(OptionVotes[1]),
-      winnerRoot,
-      loserRoot,
-      addedRewards,
-    ],
-  });
-  return { success: true, data: txHash };
+  let winnerRoot: string;
+  try {
+    const { winnerRoot: _winnerRoot } = await buildWinnerLoserMerkles(
+      WinningOptionVoters,
+      LosingOptionVoters,
+      contractAddressParsed.toLowerCase()
+    );
+    winnerRoot = _winnerRoot;
+  } catch (error) {
+    console.error("Error building merkle tree", error);
+    return { success: false, error: "Building Merkle Tree Failed" };
+  }
+  let txHash: `0x${string}`;
+  try {
+    const _txHash = await walletClient.writeContract({
+      address: contractAddressParsed,
+      abi: CREATEVOTE_ABI,
+      functionName: "finalizeVote",
+      args: [
+        BigInt(OptionVotes[0]),
+        BigInt(OptionVotes[1]),
+        winnerRoot,
+        addedRewards,
+      ],
+    });
+    txHash = _txHash;
+  } catch (error) {
+    console.error("Error finalizing vote", error);
+    return { success: false, error: "Finalized Transaction Failed" };
+  }
+  try {
+    await db
+      .update(proofs)
+      .set({ isResolved: true })
+      .where(eq(proofs.contractAddress, contractAddressParsed.toLowerCase()));
+    return { success: true, data: txHash };
+  } catch (error) {
+    console.error("Error updating proofs in DB", error);
+    return { success: false, error: "Updating Proofs Failed" };
+  }
 }
 
 type ParsedVote = {
@@ -623,9 +699,12 @@ export async function getMerkleProof({
           eq(proofs.userAddress, userAddressLowerCase),
           eq(proofs.contractAddress, contractAddrLowerCase)
         )
-      );
-    return { success: true, data: merkleProofs };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+      )
+      .limit(1);
+    const proofArray = merkleProofs[0]?.merkleProofs ?? [];
+    return { success: true, data: proofArray };
+  } catch (error) {
+    console.error("Error fetching merkle proofs from DB", error);
+    return { success: false, error: "Error Fetching Merkle Proofs" };
   }
 }

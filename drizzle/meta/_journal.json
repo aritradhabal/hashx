@@ -15,6 +15,13 @@
       "when": 1761324803490,
       "tag": "0001_tough_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761331439219,
+      "tag": "0002_stiff_beyonder",
+      "breakpoints": true
     }
   ]
 }

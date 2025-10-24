@@ -1,0 +1,1 @@
+ALTER TABLE "proofs" ADD COLUMN "is_resolved" boolean DEFAULT false NOT NULL;

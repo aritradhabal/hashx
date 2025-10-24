@@ -2,10 +2,19 @@
 import { db } from "@/db";
 import { proofs } from "@/db/schema";
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-
+const ZERO_BYTES32 =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
 export type VoterEntry = { address: string; amount: bigint };
 
 export async function buildMerkleFromVoters(voters: VoterEntry[]) {
+  if (voters.length === 0) {
+    return {
+      root: ZERO_BYTES32,
+      proofsByAddress: {},
+      tree: null,
+    };
+  }
+
   const entries: [string, bigint][] = voters.map((v) => [v.address, v.amount]);
   const tree = StandardMerkleTree.of(entries, ["address", "uint256"]);
 
@@ -32,7 +41,8 @@ export async function buildWinnerLoserMerkles(
 
   const winnerProofsByAddress = w.proofsByAddress;
   const loserProofsByAddress = l.proofsByAddress;
-
+  console.log("winnerProofsByAddress", winnerProofsByAddress);
+  console.log("loserProofsByAddress", loserProofsByAddress);
   const winnerRows = Object.entries(winnerProofsByAddress).map(
     ([userAddress, merkleProofs]) => ({
       userAddress,
@@ -48,10 +58,11 @@ export async function buildWinnerLoserMerkles(
     })
   );
   const allRows = [...winnerRows, ...loserRows];
-
-  await db.insert(proofs).values(allRows);
+  console.log("allRows", allRows);
+  if (allRows.length > 0) {
+    await db.insert(proofs).values(allRows);
+  }
   return {
     winnerRoot: w.root,
-    loserRoot: l.root,
   };
 }
