@@ -50,7 +50,9 @@ export const proofs = pgTable("proofs", {
 });
 
 export const predictionMarkets = pgTable("prediction_markets", {
-  marketId: bigint("market_id", { mode: "bigint" }).notNull().primaryKey(),
+  id: serial("id").primaryKey(),
+  marketId: bigint("market_id", { mode: "bigint" }).notNull(),
+  oracleAddress: varchar("oracle_address", { length: 80 }).notNull(),
   marketAddress: varchar("market_address", {
     length: 80,
   }).notNull(),

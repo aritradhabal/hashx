@@ -41,3 +41,12 @@ export interface secretParamsT {
   verified: boolean;
   server: boolean;
 }
+
+export type MarketCardData = {
+  marketId: string;
+  title: string;
+  description: string;
+  marketAddress: string;
+  oracleAddress: string;
+  resolved: boolean;
+};

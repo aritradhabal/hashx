@@ -1,9 +1,7 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import type { VoteCardData } from "@/actions/types";
+import type { MarketCardData } from "@/actions/types";
 import {
   Item,
-  ItemActions,
   ItemContent,
   ItemDescription,
   ItemFooter,
@@ -12,41 +10,35 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import React, { useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
-type TabValue = "Ongoing" | "Resolved" | "Upcoming";
+type TabValue = "Ongoing" | "Resolved";
 import { toast } from "sonner";
-import { VoteCard } from "@/app/(vote)/vote/components/votingComponents/VoteCard";
-import { fetchContracts } from "@/app/(vote)/vote/components/votingComponents/fetchContracts";
+import { fetchMarketsByResolution } from "@/actions/db-actions";
+import { MarketCard } from "./MarketCard";
 
 export const Markets = () => {
   const [activeTab, setActiveTab] = React.useState<TabValue>("Ongoing");
-  const [ongoing, setOngoing] = useState<VoteCardData[]>([]);
-  const [resolved, setResolved] = useState<VoteCardData[]>([]);
-  const [upcoming, setUpcoming] = useState<VoteCardData[]>([]);
+  const [ongoing, setOngoing] = useState<MarketCardData[]>([]);
+  const [resolved, setResolved] = useState<MarketCardData[]>([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [isUserVoted, setIsUserVoted] = useState(false);
 
   useEffect(() => {
-    const fetchContractsClient = async (activeTab: TabValue) => {
+    const fetchMarketsClient = async (activeTab: TabValue) => {
       setIsFetching(true);
-      const { success, data } = await fetchContracts(activeTab);
+      const isResolved = activeTab === "Resolved";
+      const { success, data } = await fetchMarketsByResolution(isResolved);
       if (success) {
-        if (activeTab === "Ongoing") {
-          setOngoing(data as VoteCardData[]);
-        }
-        if (activeTab === "Resolved") {
-          setResolved(data as VoteCardData[]);
-        }
-        if (activeTab === "Upcoming") {
-          setUpcoming(data as VoteCardData[]);
-        }
+        if (isResolved) setResolved((data as MarketCardData[]) ?? []);
+        else setOngoing((data as MarketCardData[]) ?? []);
         setIsFetching(false);
       } else {
         setIsFetching(false);
-        toast.error("Failed to fetch data. Try again...", { duration: 3500 });
+        toast.error("Failed to fetch markets. Try again...", {
+          duration: 3500,
+        });
       }
     };
 
-    fetchContractsClient(activeTab);
+    fetchMarketsClient(activeTab);
   }, [activeTab]);
 
   return (
@@ -76,39 +68,13 @@ export const Markets = () => {
                   <Spinner /> Loading...
                 </div>
               )}
-              {ongoing.map((vote) => (
-                <VoteCard
-                  key={vote.marketId}
-                  title={vote.title}
-                  description={vote.description}
-                  optionA={vote.optionATitle}
-                  optionB={vote.optionBTitle}
-                  optionAValue={vote.tallies.optionA}
-                  optionBValue={vote.tallies.optionB}
-                  showBadges={true}
-                  N={vote.pp.N}
-                  t={vote.pp.t}
-                  a={vote.pp.a}
-                  skLocked={vote.pp.skLocked}
-                  publicKey={vote.pp.publicKey}
-                  rewards={vote.rewards}
-                  marketId={vote.marketId}
-                  server={vote.server}
-                  hashedSK={vote.pp.hashedSK}
-                  contractAddress={vote.contractAddress as string}
-                  solver={
-                    vote.data.solver ??
-                    "0x0000000000000000000000000000000000000000"
-                  }
-                  unlockedSecret={
-                    vote.data.unlockedSecret ??
-                    "0x0000000000000000000000000000000000000000000000000000000000000000"
-                  }
-                  setOngoing={setOngoing}
-                  setResolved={setResolved}
-                  setUpcoming={setUpcoming}
-                  activeTab={activeTab}
-                  timeleft={Number(vote.endTimestamp) - Date.now() / 1000}
+              {ongoing.map((m) => (
+                <MarketCard
+                  key={m.marketId}
+                  title={m.title}
+                  description={m.description}
+                  marketAddress={m.marketAddress}
+                  oracleAddress={m.oracleAddress}
                 />
               ))}
             </div>
@@ -120,38 +86,13 @@ export const Markets = () => {
                   <Spinner /> Loading...
                 </div>
               )}
-              {resolved.map((vote) => (
-                <VoteCard
-                  key={vote.marketId}
-                  title={vote.title}
-                  description={vote.description}
-                  optionA={vote.optionATitle}
-                  optionB={vote.optionBTitle}
-                  optionAValue={vote.tallies.optionA}
-                  optionBValue={vote.tallies.optionB}
-                  showBadges={true}
-                  N={vote.pp.N}
-                  t={vote.pp.t}
-                  a={vote.pp.a}
-                  skLocked={vote.pp.skLocked}
-                  publicKey={vote.pp.publicKey}
-                  rewards={vote.rewards}
-                  marketId={vote.marketId}
-                  server={vote.server}
-                  hashedSK={vote.pp.hashedSK}
-                  contractAddress={vote.contractAddress as string}
-                  solver={
-                    vote.data.solver ??
-                    "0x0000000000000000000000000000000000000000"
-                  }
-                  unlockedSecret={
-                    vote.data.unlockedSecret ??
-                    "0x0000000000000000000000000000000000000000000000000000000000000000"
-                  }
-                  setOngoing={setOngoing}
-                  setResolved={setResolved}
-                  setUpcoming={setUpcoming}
-                  activeTab={activeTab}
+              {resolved.map((m) => (
+                <MarketCard
+                  key={m.marketId}
+                  title={m.title}
+                  description={m.description}
+                  marketAddress={m.marketAddress}
+                  oracleAddress={m.oracleAddress}
                 />
               ))}
             </div>

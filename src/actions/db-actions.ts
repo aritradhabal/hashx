@@ -77,7 +77,7 @@ export interface GetPredictionT {
   initialProbability: bigint;
   percentageLocked: bigint;
 }
-import type { VoteCardData } from "./types";
+import type { VoteCardData, MarketCardData } from "./types";
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
@@ -838,7 +838,78 @@ export async function verifyMarket(txHash: `0x${string}`) {
     marketAddress: _predictionMarketAddr,
     question: data.question ?? "",
     description: data.description ?? "",
+    oracleAddress: data.oracle,
   });
 
   return { success: true, data: _predictionMarketAddr };
+}
+
+const toMarketCardData = (row: {
+  marketId: bigint;
+  question: string;
+  description: string;
+  marketAddress: string;
+  oracleAddress: string;
+  resolved: boolean;
+}): MarketCardData => ({
+  marketId: row.marketId.toString(),
+  title: row.question,
+  description: row.description,
+  marketAddress: row.marketAddress,
+  oracleAddress: row.oracleAddress,
+  resolved: !!row.resolved,
+});
+
+export async function fetchActiveMarkets(): Promise<{
+  success: boolean;
+  data?: MarketCardData[];
+  error?: string;
+}> {
+  try {
+    const rows = await db
+      .select({
+        marketId: predictionMarkets.marketId,
+        question: predictionMarkets.question,
+        description: predictionMarkets.description,
+        marketAddress: predictionMarkets.marketAddress,
+        oracleAddress: predictionMarkets.oracleAddress,
+        resolved: predictionMarkets.resolved,
+      })
+      .from(predictionMarkets)
+      .where(eq(predictionMarkets.resolved, false))
+      .orderBy(desc(predictionMarkets.id));
+
+    return { success: true, data: rows.map(toMarketCardData) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function fetchResolvedMarkets(): Promise<{
+  success: boolean;
+  data?: MarketCardData[];
+  error?: string;
+}> {
+  try {
+    const rows = await db
+      .select({
+        marketId: predictionMarkets.marketId,
+        question: predictionMarkets.question,
+        description: predictionMarkets.description,
+        marketAddress: predictionMarkets.marketAddress,
+        oracleAddress: predictionMarkets.oracleAddress,
+        resolved: predictionMarkets.resolved,
+      })
+      .from(predictionMarkets)
+      .where(eq(predictionMarkets.resolved, true))
+      .orderBy(desc(predictionMarkets.id));
+
+    return { success: true, data: rows.map(toMarketCardData) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function fetchMarketsByResolution(isResolved: boolean) {
+  return isResolved ? fetchResolvedMarkets() : fetchActiveMarkets();
 }

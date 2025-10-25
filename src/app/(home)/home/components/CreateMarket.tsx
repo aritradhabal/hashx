@@ -79,6 +79,13 @@ export const CreateMarket = () => {
     fetchBalance: fetchTokenBalance,
   } = useTokenBalanceStore();
 
+  const maxTokens = Number(stakedTokenBalance) - 1;
+  const stakedAmount = Number(stakedTokenBalance);
+  const [amount, setAmount] = useState(0);
+  const [isAgreed, setIsAgreed] = useState(false);
+  const [BtnClicked, setBtnClicked] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+
   useEffect(() => {
     if (isPending) return;
     const checkMarketCreatTxn = async () => {
@@ -87,6 +94,7 @@ export const CreateMarket = () => {
         const { success, data, error } = await verifyMarket(
           txHash as `0x${string}`
         );
+        setIsVerifying(true);
         toast.success("Transaction completed, Verifying...", {
           id: marketCreateToast,
           duration: 3500,
@@ -138,16 +146,11 @@ export const CreateMarket = () => {
       setIsAgreed(false);
       setBtnClicked(false);
       setTxHash(undefined);
+      setIsVerifying(false);
     };
     fetchTokenBalance();
     checkMarketCreatTxn();
   }, [isSuccess, isPending, isError]);
-
-  const maxTokens = Number(stakedTokenBalance) - 1;
-  const stakedAmount = Number(stakedTokenBalance);
-  const [amount, setAmount] = useState(0);
-  const [isAgreed, setIsAgreed] = useState(false);
-  const [BtnClicked, setBtnClicked] = useState(false);
 
   const createContract = async () => {
     try {
@@ -364,9 +367,15 @@ export const CreateMarket = () => {
                   onClick={createContract}
                 >
                   {BtnClicked ? (
-                    <>
-                      <Spinner /> Creating Market...
-                    </>
+                    isVerifying ? (
+                      <>
+                        <Spinner /> Verifying...
+                      </>
+                    ) : (
+                      <>
+                        <Spinner /> Creating Market...
+                      </>
+                    )
                   ) : (
                     "Create Market"
                   )}

@@ -43,6 +43,13 @@
       "when": 1761429905459,
       "tag": "0005_dry_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1761431724923,
+      "tag": "0006_magenta_thanos",
+      "breakpoints": true
     }
   ]
 }
