@@ -96,6 +96,11 @@ export const Voting = () => {
                   <Spinner /> Loading...
                 </div>
               )}
+              {!isFetching && ongoing.length === 0 && (
+                <div className="w-full flex items-center justify-center pb-1 text-sm text-muted-foreground">
+                  No Voting Contract is found.
+                </div>
+              )}
               {ongoing.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
@@ -140,6 +145,11 @@ export const Voting = () => {
                   <Spinner /> Loading...
                 </div>
               )}
+              {!isFetching && resolved.length === 0 && (
+                <div className="w-full flex items-center justify-center pb-1 text-sm text-muted-foreground">
+                  No Voting Contract is found.
+                </div>
+              )}
               {resolved.map((vote) => (
                 <VoteCard
                   key={vote.marketId}
@@ -181,6 +191,11 @@ export const Voting = () => {
               {isFetching && (
                 <div className="w-full flex items-center justify-center pb-1 gap-x-2 text-sm text-muted-foreground">
                   <Spinner /> Loading...
+                </div>
+              )}
+              {!isFetching && upcoming.length === 0 && (
+                <div className="w-full flex items-center justify-center pb-1 text-sm text-muted-foreground">
+                  No Voting Contract is found.
                 </div>
               )}
               {upcoming.map((vote) => (

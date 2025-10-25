@@ -68,6 +68,11 @@ export const Markets = () => {
                   <Spinner /> Loading...
                 </div>
               )}
+              {!isFetching && ongoing.length === 0 && (
+                <div className="w-full flex items-center justify-center pb-1 text-sm text-muted-foreground">
+                  No events here.
+                </div>
+              )}
               {ongoing.map((m) => (
                 <MarketCard
                   key={m.marketId}
@@ -84,6 +89,11 @@ export const Markets = () => {
               {isFetching && (
                 <div className="w-full flex items-center justify-center pb-1 gap-x-2 text-sm text-muted-foreground">
                   <Spinner /> Loading...
+                </div>
+              )}
+              {!isFetching && resolved.length === 0 && (
+                <div className="w-full flex items-center justify-center pb-1 text-sm text-muted-foreground">
+                  No events here.
                 </div>
               )}
               {resolved.map((m) => (

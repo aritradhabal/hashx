@@ -24,7 +24,7 @@ export const MarketCard = ({
   marketAddress: string;
   oracleAddress: string;
 }) => {
-  const optionA = "True/Yes";
+  const optionA = "True/Yes"; // 1 for true, 0 for false
   const optionB = "False/No";
   const showBadges = true;
   return (
