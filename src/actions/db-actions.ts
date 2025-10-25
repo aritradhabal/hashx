@@ -44,6 +44,8 @@ interface VoteConfigT {
   endTimestamp: bigint;
   thresholdVotes: number;
   creator: Address;
+  question: string;
+  description: string;
 }
 interface VoteDataT {
   resolvedOption: bigint;
@@ -206,6 +208,8 @@ export async function verifySecret(txHash: `0x${string}`) {
       optionA: voteConfig.optionA,
       optionB: voteConfig.optionB,
       rewards: voteConfig.rewards,
+      question: voteConfig.question,
+      description: voteConfig.description,
     })
     .where(eq(secrets.marketId, _marketId));
 
@@ -216,12 +220,13 @@ export async function verifySecret(txHash: `0x${string}`) {
   };
 }
 
-const _marketTitle = "Who will win the election?";
-const _marketDescription =
-  "Source: https://www.google.com and https://nytimes.com after 10 days of voting for each option";
+const _marketTitle = "Failed to load market title";
+const _marketDescription = "Failed to load market description";
 
 const toVoteCardData = (row: {
   marketId: bigint;
+  question: string | null;
+  description: string | null;
   N: string;
   t: bigint;
   a: number;
@@ -241,8 +246,8 @@ const toVoteCardData = (row: {
   resolvedOption: bigint | null;
 }): VoteCardData => ({
   marketId: row.marketId.toString(),
-  title: _marketTitle,
-  description: _marketDescription,
+  title: row.question ?? _marketTitle,
+  description: row.description ?? _marketDescription,
   optionATitle: "True/Yes",
   optionBTitle: "False/No",
   rewards: row.rewards?.toString() ?? "0",
@@ -294,6 +299,8 @@ export async function getActiveVotes() {
         solver: secrets.solver,
         unlockedSecret: secrets.unlockedSecret,
         resolvedOption: secrets.resolvedOption,
+        question: secrets.question,
+        description: secrets.description,
       })
       .from(secrets)
       .where(
@@ -334,6 +341,8 @@ export async function getResolvedVotes() {
         solver: secrets.solver,
         unlockedSecret: secrets.unlockedSecret,
         resolvedOption: secrets.resolvedOption,
+        question: secrets.question,
+        description: secrets.description,
       })
       .from(secrets)
       .where(and(lt(secrets.endTimestamp, now), eq(secrets.verified, true)))
@@ -368,6 +377,8 @@ export async function getUpcomingVotes() {
         solver: secrets.solver,
         unlockedSecret: secrets.unlockedSecret,
         resolvedOption: secrets.resolvedOption,
+        question: secrets.question,
+        description: secrets.description,
       })
       .from(secrets)
       .where(and(gt(secrets.startTimeStamp, now), eq(secrets.verified, true)))

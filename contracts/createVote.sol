@@ -53,6 +53,8 @@ contract CreateVote {
         uint256 endTimestamp;
         uint32 thresholdVotes;
         address creator;
+        string question;
+        string description;
     }
 
     struct VoteData {
@@ -99,7 +101,9 @@ contract CreateVote {
         uint32 _a,
         bytes32 _skLocked,
         bytes32 _hashedSK,
-        bytes32 _publicKey
+        bytes32 _publicKey,
+        string memory _question,
+        string memory _description
     ) {
         LockingContract = HBARlockingContract(_hbarLockingContractAddress);
         if (_startTimestamp >= _endTimestamp) {
@@ -122,7 +126,9 @@ contract CreateVote {
             startTimestamp: _startTimestamp,
             endTimestamp: _endTimestamp,
             thresholdVotes: _thresholdVotes,
-            creator: _creator
+            creator: _creator,
+            question: _question,
+            description: _description
         });
         pp = PublicParameters({
             N: _N,

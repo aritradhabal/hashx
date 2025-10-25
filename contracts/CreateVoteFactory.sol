@@ -29,7 +29,9 @@ contract CreateVoteFactory {
         uint32 _a,
         bytes32 _skLocked,
         bytes32 _hashedSK,
-        bytes32 _publicKey
+        bytes32 _publicKey,
+        string memory _question,
+        string memory _description
     ) external returns (address) {
         if (marketContracts[_marketId] != address(0)) {
             revert AlreadyDeployed(_marketId, marketContracts[_marketId]);
@@ -48,7 +50,9 @@ contract CreateVoteFactory {
             _a,
             _skLocked,
             _hashedSK,
-            _publicKey
+            _publicKey,
+            _question,
+            _description
         );
 
         marketContracts[_marketId] = address(createVoteContract);

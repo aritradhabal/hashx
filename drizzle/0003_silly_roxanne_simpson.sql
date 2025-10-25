@@ -1,0 +1,1 @@
+ALTER TABLE "secrets" ADD COLUMN "question" text;

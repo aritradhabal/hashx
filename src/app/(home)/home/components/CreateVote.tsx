@@ -87,7 +87,19 @@ const defaultArgs: argsT = {
   hashedSK: undefined,
   publicKey: undefined,
 };
-export const CreateVote = () => {
+export const CreateVote = ({
+  question,
+  description,
+  disabled,
+  setMarketId,
+  setContractAddress,
+}: {
+  question: string;
+  description: string;
+  disabled: boolean;
+  setMarketId: Dispatch<SetStateAction<bigint | undefined>>;
+  setContractAddress: Dispatch<SetStateAction<`0x${string}` | undefined>>;
+}) => {
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState(0);
   const [BtnClicked, setBtnClicked] = useState(false);
@@ -99,6 +111,7 @@ export const CreateVote = () => {
   const [toast1, setToast1] = useState<string | number>();
   const [toast2, setToast2] = useState<string | number>();
   const [args, setArgs] = useState<argsT>(defaultArgs);
+  const [creating, setCreating] = useState(false);
   const { isSuccess: isConfirmed, isError } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     query: {
@@ -127,6 +140,10 @@ export const CreateVote = () => {
             duration: 3500,
           });
         } else {
+          setMarketId(args.marketId as bigint);
+          setContractAddress(contractAddress as `0x${string}`);
+          console.log(args.marketId?.toString());
+          console.log(contractAddress);
           toast.success("Contract Created", {
             id: toast1,
             duration: 3500,
@@ -147,6 +164,7 @@ export const CreateVote = () => {
         setBtnClicked(false);
         setTxHash(undefined);
         setArgs(defaultArgs);
+        setCreating(false);
       }
       if (isError) {
         toast.error("Transaction failed. Try again later.", {
@@ -159,6 +177,7 @@ export const CreateVote = () => {
         setBtnClicked(false);
         setTxHash(undefined);
         setArgs(defaultArgs);
+        setCreating(false);
       }
 
       fetchNativeBalance();
@@ -182,21 +201,35 @@ export const CreateVote = () => {
     <>
       <Dialog open={dialogOpen} onOpenChange={setDialogppen}>
         <DialogTrigger asChild>
-          <Button variant={"secondary"}>Create Vote</Button>
+          <Button
+            disabled={disabled || creating}
+            onClick={() => {
+              setCreating(true);
+            }}
+            variant={"secondary"}
+          >
+            {creating ? (
+              <>
+                <Spinner /> Creating Oracle...
+              </>
+            ) : (
+              "Start Creating"
+            )}
+          </Button>
         </DialogTrigger>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Create Vote</DialogTitle>
+            <DialogTitle>Create Oracle</DialogTitle>
             <DialogDescription>
-              Creating a voting contract for the event.
+              Creating a oracle contract for the event.
             </DialogDescription>
           </DialogHeader>
 
           <Card className="w-full bg-background rounded-md">
             <CardHeader>
-              <CardTitle>Voting Reward in &#8463;</CardTitle>
+              <CardTitle>Oracle Reward in &#8463;</CardTitle>
               <CardDescription className="text-xs">
-                Voting Rewards will be distributed in proportion voters balance.
+                Oracle Rewards will be distributed in proportion voters balance.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -365,6 +398,8 @@ export const CreateVote = () => {
                         callArgs.skLocked,
                         callArgs.hashedSK,
                         callArgs.publicKey,
+                        question,
+                        description,
                       ],
                     });
                     setTxHash(txHash);

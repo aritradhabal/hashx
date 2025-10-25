@@ -5,6 +5,7 @@ import {
   bigint,
   integer,
   jsonb,
+  text,
   boolean,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -28,6 +29,8 @@ export const secrets = pgTable("secrets", {
   endTimestamp: bigint("endTimeStamp", { mode: "bigint" }),
 
   solver: varchar("solver", { length: 80 }),
+  question: text("question"),
+  description: text("description"),
   unlockedSecret: varchar("unlocked_secret", { length: 80 }),
   resolvedOption: bigint("resolved_option", { mode: "bigint" }),
 });
