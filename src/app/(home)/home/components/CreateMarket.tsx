@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-
 import {
   Card,
   CardAction,
@@ -12,8 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CgArrowsExchange } from "react-icons/cg";
-
 import { Label } from "@/components/ui/label";
 import {
   HoverCard,
@@ -24,7 +21,6 @@ import { Input } from "@/components/ui/input";
 import { FaPlus, FaMinus } from "react-icons/fa6";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Item,
   ItemActions,
@@ -32,16 +28,10 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@/components/ui/item";
-import { GoCheckCircleFill } from "react-icons/go";
-
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
-import { wagmiContractConfig } from "@/utils/contracts";
 import { Spinner } from "@/components/ui/spinner";
-import { useTransactionHashStore } from "@/store/useTransactionHashStore";
 import { useNativeBalanceStore } from "@/store/useNativeBalanceStore";
 import { useTokenBalanceStore } from "@/store/useTokenBalanceStore";
-import { Slider } from "@/components/ui/slider";
 import { InfoIcon } from "lucide-react";
 
 import {
@@ -55,12 +45,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { IoMdCheckmarkCircleOutline } from "react-icons/io";
 import { MdQuestionMark } from "react-icons/md";
 import { CreateVote } from "./CreateVote";
 import { MdPercent } from "react-icons/md";
 import { PredictionMarketFactoryContractConfig } from "@/utils/contracts";
 import { HBAR_LOCKING_CONTRACT_ADDRESS } from "@/constants";
+import { verifyMarket } from "@/actions/db-actions";
 export const CreateMarket = () => {
   const { writeContractAsync } = useWriteContract();
   const [txHash, setTxHash] = useState<string | undefined>(undefined);
@@ -93,9 +83,11 @@ export const CreateMarket = () => {
     if (isPending) return;
     const checkMarketCreatTxn = async () => {
       if (isSuccess) {
-        console.log("Transaction completed");
-        console.log(txHash);
-        toast.success("Transaction completed", {
+        console.log("Transaction Hash:", txHash);
+        const { success, data, error } = await verifyMarket(
+          txHash as `0x${string}`
+        );
+        toast.success("Transaction completed, Verifying...", {
           id: marketCreateToast,
           duration: 3500,
           action: {
@@ -108,6 +100,26 @@ export const CreateMarket = () => {
             },
           },
         });
+        if (success) {
+          toast.success("Event created successfully", {
+            id: marketCreateToast,
+            duration: 3500,
+            action: {
+              label: "View on Explorer",
+              onClick: () => {
+                window.open(
+                  `https://hashscan.io/testnet/contract/${data}`,
+                  "_blank"
+                );
+              },
+            },
+          });
+        } else {
+          toast.error(error || "Market Verification failed. Try again later.", {
+            id: marketCreateToast,
+            duration: 3500,
+          });
+        }
       }
       if (isError) {
         console.log(error);

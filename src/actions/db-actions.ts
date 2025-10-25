@@ -1,16 +1,21 @@
 "use server";
 import { db } from "@/db/index";
-import { proofs, secrets } from "@/db/schema";
+import { predictionMarkets, proofs, secrets } from "@/db/schema";
 import {
   CREATEVOTE_ABI,
   CREATEVOTE_FACTORY_ADDRESS,
   HBAR_LOCKING_CONTRACT_ADDRESS,
+  PREDICT_MARKET_FACTORY_ADDRESS,
+  PREDICTION_MARKET_ABI,
 } from "@/constants";
 import { eq, and, lte, gte, lt, gt, asc, desc } from "drizzle-orm";
 import { getBlock, getTransactionReceipt } from "@wagmi/core";
 import { config, viemClient } from "@/utils/WagmiConfig";
 import { readContract } from "@wagmi/core";
-import { CreateVoteContractConfig } from "@/utils/contracts";
+import {
+  CreateVoteContractConfig,
+  PredictionMarketFactoryContractConfig,
+} from "@/utils/contracts";
 import { parseAbiItem } from "viem";
 import axios from "axios";
 import {
@@ -53,13 +58,34 @@ interface VoteDataT {
   solver: `0x${string}`;
   totalVotes: number;
 }
+export interface GetPredictionT {
+  question: string;
+  description: string;
+  outcome1: string;
+  outcome2: string;
+  oracle: `0x${string}`;
+  initialTokenValue: bigint;
+  yesTokenReserve: bigint;
+  noTokenReserve: bigint;
+  isReported: boolean;
+  yesToken: `0x${string}`;
+  noToken: `0x${string}`;
+  winningToken: `0x${string}`;
+  ethCollateral: bigint;
+  lpTradingRevenue: bigint;
+  predictionMarketOwner: `0x${string}`;
+  initialProbability: bigint;
+  percentageLocked: bigint;
+}
 import type { VoteCardData } from "./types";
 type ReadMap = {
   getPublicParameters: ppT;
   getVoteConfig: VoteConfigT;
   getVoteData: VoteDataT;
 };
-
+type MarketReadMap = {
+  getPrediction: GetPredictionT;
+};
 export async function getAddrFromABIEncoded(paddedAddr: `0x${string}`) {
   const [rawAddress] = decodeAbiParameters(
     [{ type: "address" }],
@@ -80,6 +106,58 @@ export const getDataFromContract = async <F extends keyof ReadMap>(
   });
 
   return result as ReadMap[F];
+};
+export const getDataFromMarket = async <F extends keyof MarketReadMap>(
+  address: `0x${string}`,
+  functionName: F
+): Promise<MarketReadMap[F]> => {
+  const result = await readContract(config as any, {
+    abi: PREDICTION_MARKET_ABI,
+    address: address,
+    functionName: functionName,
+  });
+  if (functionName === "getPrediction") {
+    const [
+      question,
+      description,
+      outcome1,
+      outcome2,
+      oracle,
+      initialTokenValue,
+      yesTokenReserve,
+      noTokenReserve,
+      isReported,
+      yesToken,
+      noToken,
+      winningToken,
+      ethCollateral,
+      lpTradingRevenue,
+      predictionMarketOwner,
+      initialProbability,
+      percentageLocked,
+    ] = result as any;
+
+    return {
+      question,
+      description,
+      outcome1,
+      outcome2,
+      oracle,
+      initialTokenValue,
+      yesTokenReserve,
+      noTokenReserve,
+      isReported,
+      yesToken,
+      noToken,
+      winningToken,
+      ethCollateral,
+      lpTradingRevenue,
+      predictionMarketOwner,
+      initialProbability,
+      percentageLocked,
+    } as MarketReadMap[F];
+  }
+  return result as MarketReadMap[F];
 };
 
 export async function addSecrets(secretParams: secretParamsT) {
@@ -701,4 +779,66 @@ export async function getMerkleProof({
     console.error("Error fetching merkle proofs from DB", error);
     return { success: false, error: "Error Fetching Merkle Proofs" };
   }
+}
+
+export async function verifyMarket(txHash: `0x${string}`) {
+  const receipt = await getTransactionReceipt(config as any, {
+    hash: txHash,
+  });
+  const logs = receipt.logs.at(-1);
+  if (!logs) {
+    return {
+      success: false,
+      error: "No logs found in transaction",
+    };
+  }
+  const _factoryPredictionMarketAddr = getAddress(logs.address);
+  if (
+    _factoryPredictionMarketAddr.toLowerCase() !=
+    PREDICT_MARKET_FACTORY_ADDRESS.toLowerCase()
+  ) {
+    return {
+      success: false,
+      error: "Factory prediction market address mismatch",
+    };
+  }
+
+  const _marketId = hexToBigInt(logs?.topics[1] as Hex);
+  const _predictionMarketAddr = await getAddrFromABIEncoded(
+    logs?.topics[2] as `0x${string}`
+  );
+
+  const data = await getDataFromMarket(_predictionMarketAddr, "getPrediction");
+  console.log({ _predictionMarketAddr });
+  console.log(data.oracle, data.question, data.description);
+
+  const [secretRow] = await db
+    .select({ contractAddress: secrets.contractAddress })
+    .from(secrets)
+    .where(eq(secrets.marketId, _marketId))
+    .limit(1);
+
+  const secretContractAddr = secretRow?.contractAddress ?? "";
+  if (!secretContractAddr) {
+    return {
+      success: false,
+      error: "No secrets entry or contractAddress for marketId",
+      marketId: _marketId,
+    };
+  }
+  if (data.oracle.toLowerCase() !== secretContractAddr.toLowerCase()) {
+    console.log({ secretContractAddr });
+    return {
+      success: false,
+      error: "Oracle address mismatch with secrets.contractAddress",
+    };
+  }
+  await db.insert(predictionMarkets).values({
+    marketId: _marketId,
+    marketAddress: _predictionMarketAddr,
+    question: data.question ?? "",
+    description: data.description ?? "",
+  });
+
+  return { success: true, data: _predictionMarketAddr };
 }

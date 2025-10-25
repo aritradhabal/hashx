@@ -52,7 +52,7 @@ export const Voting = () => {
   return (
     <>
       <div className="h-full w-full flex flex-col justify-start items-center gap-y-5">
-        <h2 className="w-xs md:w-xl xl:w-2xl text-xl md:text-2xl xl:text-3xl text-center font-bold break-words whitespace-normal pt-2 md:pt-5 xl:pt-8">
+        <h2 className="w-xs md:w-xl xl:w-2xl text-xl md:text-2xl xl:text-3xl text-center font-bold break-words whitespace-normal pt-2 md:pt-5 xl:pt-7">
           Submit Your Vote and Earn Rewards
         </h2>
         <Item variant="outline" className="w-xs md:w-3xl xl:w-4xl 2xl:w-5xl">

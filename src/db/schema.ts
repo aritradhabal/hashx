@@ -48,3 +48,13 @@ export const proofs = pgTable("proofs", {
   merkleProofs: jsonb("merkle_proofs").notNull(),
   isResolved: boolean("is_resolved").notNull().default(false),
 });
+
+export const predictionMarkets = pgTable("prediction_markets", {
+  marketId: bigint("market_id", { mode: "bigint" }).notNull().primaryKey(),
+  marketAddress: varchar("market_address", {
+    length: 80,
+  }).notNull(),
+  question: text("question").notNull(),
+  description: text("description").notNull(),
+  resolved: boolean("resolved").notNull().default(false),
+});

@@ -1,6 +1,6 @@
 import React from "react";
 import { Separator } from "@/components/ui/separator";
-import Markets from "./components/Markets";
+import { Markets } from "./components/Markets";
 import { CreateMarket } from "./components/CreateMarket";
 
 const Home = () => {
