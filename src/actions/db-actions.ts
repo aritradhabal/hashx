@@ -16,7 +16,7 @@ import {
   CreateVoteContractConfig,
   PredictionMarketFactoryContractConfig,
 } from "@/utils/contracts";
-import { parseAbiItem } from "viem";
+import { parseAbi, parseAbiItem } from "viem";
 import axios from "axios";
 import {
   decodeAbiParameters,
@@ -688,6 +688,24 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
     console.error("Error building merkle tree", error);
     return { success: false, error: "Building Merkle Tree Failed" };
   }
+  try {
+    const { result } = await viemClient.simulateContract({
+      address: contractAddressParsed,
+      abi: CREATEVOTE_ABI,
+      functionName: "finalizeVote",
+      args: [
+        BigInt(OptionVotes[0]),
+        BigInt(OptionVotes[1]),
+        winnerRoot,
+        addedRewards,
+      ],
+      account: "0x16c9889E863ac61880C9268500B1BA3234935392",
+    });
+    console.log("Finalize Vote Simulation success");
+  } catch (error) {
+    console.error("Simulation failed (revert expected):", error);
+    return { success: false, error: "Finalize Vote Transaction will revert" };
+  }
   let txHash: `0x${string}`;
   try {
     const walletClient = await getWalletClient();
@@ -718,6 +736,17 @@ export async function getAllCastedVotes(contractAddress: `0x${string}`) {
       .update(secrets)
       .set({ rewards: totalRewards })
       .where(eq(secrets.contractAddress, contractAddress));
+
+    await db
+      .update(predictionMarkets)
+      .set({ resolved: true })
+      .where(eq(predictionMarkets.oracleAddress, contractAddress));
+
+    console.log({
+      oracleAddress: predictionMarkets.oracleAddress,
+      contractAddress,
+    });
+
     return { success: true, data: txHash };
   } catch (error) {
     console.error("Error updating proofs in DB", error);
@@ -809,8 +838,17 @@ export async function verifyMarket(txHash: `0x${string}`) {
   );
 
   const data = await getDataFromMarket(_predictionMarketAddr, "getPrediction");
+
   console.log({ _predictionMarketAddr });
   console.log(data.oracle, data.question, data.description);
+
+  const { success, error } = await simulateSetPredictionMarket(
+    _predictionMarketAddr,
+    data.oracle
+  );
+  if (!success) {
+    return { success: false, error: "Failed, Transaction will revert" };
+  }
 
   const [secretRow] = await db
     .select({ contractAddress: secrets.contractAddress })
@@ -841,7 +879,18 @@ export async function verifyMarket(txHash: `0x${string}`) {
     oracleAddress: data.oracle,
   });
 
-  return { success: true, data: _predictionMarketAddr };
+  const walletClient = await getWalletClient();
+  const setPredictionMarketAbi = parseAbi([
+    "function setPredictionMarket(address _pm) external",
+  ]);
+  const _txHash = await walletClient.writeContract({
+    address: data.oracle,
+    abi: setPredictionMarketAbi,
+    functionName: "setPredictionMarket",
+    args: [_predictionMarketAddr],
+  });
+
+  return { success: true, data: _txHash };
 }
 
 const toMarketCardData = (row: {
@@ -913,3 +962,49 @@ export async function fetchResolvedMarkets(): Promise<{
 export async function fetchMarketsByResolution(isResolved: boolean) {
   return isResolved ? fetchResolvedMarkets() : fetchActiveMarkets();
 }
+
+export const simulateSetPredictionMarket = async (
+  pmContractAddress: `0x${string}`,
+  oracleAddress: `0x${string}`
+) => {
+  const abi = parseAbi(["function setPredictionMarket(address _pm) external"]);
+  try {
+    const { result, request } = await viemClient.simulateContract({
+      address: oracleAddress,
+      abi,
+      functionName: "setPredictionMarket",
+      args: [pmContractAddress],
+      account: "0x16c9889E863ac61880C9268500B1BA3234935392",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Simulation failed (revert expected):", error);
+    return { success: false, error: error };
+  }
+};
+
+export const simulateFinalizeVote = async (
+  createVoteContractAddress: `0x${string}`,
+  oracleAddress: `0x${string}`
+) => {
+  try {
+    const { result } = await viemClient.simulateContract({
+      address: "0x039d792758192dfc67f875046053ace030d3c35d",
+      abi: CREATEVOTE_ABI,
+      functionName: "finalizeVote",
+      args: [
+        BigInt(2),
+        BigInt(3),
+        "0x1000000000000000000000000000000000000000000000000000000000000000",
+        BigInt(1e8),
+      ],
+      account: "0x16c9889E863ac61880C9268500B1BA3234935392",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Simulation failed (revert expected):", error);
+    return { success: false, error: "Finalize Vote Transaction will revert" };
+  }
+};

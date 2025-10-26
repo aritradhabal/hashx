@@ -116,7 +116,7 @@ export const CreateMarket = () => {
               label: "View on Explorer",
               onClick: () => {
                 window.open(
-                  `https://hashscan.io/testnet/contract/${data}`,
+                  `https://hashscan.io/testnet/transaction/${data}`,
                   "_blank"
                 );
               },
