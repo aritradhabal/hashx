@@ -4,6 +4,8 @@ HashX is an app for creating and resolving prediction markets with accuracy with
 
 > Votes are encrypted using BabyJubJub-based ECDH and AES-256-CTR, then revealed via a timelock puzzle or automatically by a server-held key. Rewards are distributed using Merkle proofs.
 
+> If you are trying the live deploy link, please try two to three times to deploy the contracts, I observed frequent crashes.
+
 ### Features
 
 - Verifier Secret Key is generated upon Oracle Creation, Public Parameters for solving the SK is published Onchain (RSA modulus $N$, base $a$, iterations $t$)
