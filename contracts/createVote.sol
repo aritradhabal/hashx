@@ -16,6 +16,7 @@ error NotOwner(address);
 error VoteNotEnded(uint256);
 error VoteAlreadyFinalized(address);
 error InvalidMerkleProof(address);
+error ADDRESS_MISMATCH(address);
 
 interface HBARlockingContract {
     function transferWHbar(address, address, uint256) external returns (bool);
@@ -25,6 +26,17 @@ interface HBARlockingContract {
     function receiveWHbar(address, uint256) external payable;
 
     function checkWHBARBalance(address) external view returns (uint256);
+}
+
+interface IPredictionMarket {
+    enum Outcome {
+        YES,
+        NO
+    }
+
+    function report(Outcome _winningOutcome) external;
+
+    function getOracleAddress() external view returns (address);
 }
 
 contract CreateVote {
@@ -79,6 +91,7 @@ contract CreateVote {
     }
 
     HBARlockingContract public LockingContract;
+    IPredictionMarket public pmContract;
     VoteConfig public config;
     VoteData public data;
     PublicParameters public pp;
@@ -140,6 +153,16 @@ contract CreateVote {
         });
         data.owner = address(0x16c9889E863ac61880C9268500B1BA3234935392);
         LockingContract.transferWHbar(_creator, address(this), _rewards);
+    }
+
+    function setPredictionMarket(address _pm) external {
+        if (msg.sender != data.owner) {
+            revert NotOwner(msg.sender);
+        }
+        pmContract = IPredictionMarket(_pm);
+        if (pmContract.getOracleAddress() != address(this)) {
+            revert ADDRESS_MISMATCH(pmContract.getOracleAddress());
+        }
     }
 
     function getPublicParameters()
@@ -241,6 +264,12 @@ contract CreateVote {
         }
         data.winnerMerkleTreeRoot = _winnerMerkleTreeRoot;
         config.rewards += _addedRewards;
+
+        IPredictionMarket.Outcome outcome = _optionACount >= _optionBcount
+            ? IPredictionMarket.Outcome.YES
+            : IPredictionMarket.Outcome.NO;
+
+        pmContract.report(outcome);
 
         emit VoteFinalized(
             data.totalVotes,

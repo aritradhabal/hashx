@@ -330,6 +330,10 @@ contract PredictionMarket is Ownable {
         );
     }
 
+    function getOracleAddress() public view returns (address) {
+        return i_oracle;
+    }
+
     /**
      * @notice Owner of contract can redeem winning tokens held by the contract after prediction is resolved and get ETH from the contract including LP revenue and collateral back
      * @dev Only callable by the owner and only if the prediction is resolved
