@@ -79,6 +79,9 @@ contract CreateVote {
         uint256 optionACount;
         uint256 optionBCount;
         bytes32 winnerMerkleTreeRoot;
+        uint256 addedRewards;
+        uint256 winningUsersTotalDeposits;
+        uint256 totalRewards;
     }
 
     struct PublicParameters {
@@ -264,7 +267,12 @@ contract CreateVote {
         }
         data.winnerMerkleTreeRoot = _winnerMerkleTreeRoot;
         config.rewards += _addedRewards;
-
+        data.addedRewards += _addedRewards;
+        uint256 contractBalance = getContractBalance();
+        data.winningUsersTotalDeposits =
+            contractBalance -
+            (data.addedRewards + config.rewards);
+        data.totalRewards = _addedRewards + config.rewards;
         IPredictionMarket.Outcome outcome = _optionACount >= _optionBcount
             ? IPredictionMarket.Outcome.YES
             : IPredictionMarket.Outcome.NO;
@@ -296,11 +304,10 @@ contract CreateVote {
         if (!isWinner) {
             revert InvalidMerkleProof(msg.sender);
         }
-        uint256 contractBalance = getContractBalance();
-        uint256 totalRewards = depositAmount +
-            (depositAmount * config.rewards) /
-            contractBalance;
+        uint256 totalAmtTosend = depositAmount +
+            (depositAmount * data.totalRewards) /
+            data.winningUsersTotalDeposits;
         deposits[msg.sender] = 0;
-        LockingContract.receiveWHbar(msg.sender, totalRewards);
+        LockingContract.receiveWHbar(msg.sender, totalAmtTosend);
     }
 }

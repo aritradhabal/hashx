@@ -22,7 +22,10 @@ export const RainbowkitConfig = createConfig({
   connectors,
   chains: [hederaTestnet],
   ssr: true,
+  // transports: {
+  //   [hederaTestnet.id]: http(HederaTestnetRpcUrl),
+  // },
   transports: {
-    [hederaTestnet.id]: http(HederaTestnetRpcUrl),
+    [hederaTestnet.id]: http(),
   },
 });

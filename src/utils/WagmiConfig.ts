@@ -4,8 +4,11 @@ const HederaTestnetRpcUrl = process.env.HEDERA_TESTNET_RPC_URL;
 export const config = createConfig({
   chains: [hederaTestnet],
 
+  // transports: {
+  //   [hederaTestnet.id]: http(HederaTestnetRpcUrl),
+  // },
   transports: {
-    [hederaTestnet.id]: http(HederaTestnetRpcUrl),
+    [hederaTestnet.id]: http(),
   },
 });
 
